@@ -1,0 +1,87 @@
+################################################################################
+#
+# Copyright (c) 2015 University of Cambridge
+# All rights reserved.
+#
+# This software was developed by Stanford University and the University of Cambridge Computer Laboratory 
+# under National Science Foundation under Grant No. CNS-0855268,
+# the University of Cambridge Computer Laboratory under EPSRC INTERNET Project EP/H040536/1 and
+# by the University of Cambridge Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249 ("MRC2"), 
+# as part of the DARPA MRC research programme.
+#
+# @NETFPGA_LICENSE_HEADER_START@
+#
+# Licensed to NetFPGA C.I.C. (NetFPGA) under one or more contributor
+# license agreements.  See the NOTICE file distributed with this work for
+# additional information regarding copyright ownership.  NetFPGA licenses this
+# file to you under the NetFPGA Hardware-Software License, Version 1.0 (the
+# "License"); you may not use this file except in compliance with the
+# License.  You may obtain a copy of the License at:
+#
+#   http://www.netfpga-cic.org
+#
+# Unless required by applicable law or agreed to in writing, Work distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations under the License.
+#
+# @NETFPGA_LICENSE_HEADER_END@
+#
+GIT VERSION 1.0.0
+
+Before using this code, please check the release notes for 1.0.0 below
+
+This release contains:
+
+1. Documents
+- NetFPGA SUME Schematics
+- REference Manual
+
+2. Projects
+- Acceptance Test
+- Reference NIC
+- Reference Switch
+
+3. Cores
+- axi_sim_transactor_v1_0_0: drives an AXI Stream slave using stimuli from an AXI grammar formatted text file
+- axis_sim_pkg_v1_0_0: stream simulation I/O support package
+- axis_sim_record_v1_0_0: records traffic received from an AXI Stream master to an AXI grammar formatted text file
+- axis_sim_stim_v1_0_0: drives an AXI Stream slave using stimuli from an AXI grammar formatted text file
+- barrier_gluelogic_v1_0_0/ barrier_v1_0_0: aggregates barrier good notifications from individual modules and pushes out a global barrier good notification when all modules are ready
+- fallthrough_small_fifo_v1_0_0: small fifo with fallthrough i.e. data valid when rd is high
+- identifier_v1_0_0: used to identify the bitfile loaded in the FPGA (the time it was created and github version)
+- input_arbiter_v1_0_0: input arbiter with registers
+- nf_10ge_attachment_v1_0_0: clock and data conversion between 10GE port and NetFPGA data path
+- nf_10ge_interface_shared_v1_0_0: 10GE SFP+ interface, contains the shared logic per quad of ports
+- nf_10ge_interface_v1_0_0: 10GE SFP+ interface, without shared logic 
+- nf_axis_converter_v1_0_0: convert AXI4-Streams to different data width
+- nf_riffa_dma_v1_0_0: NetFPGA-SUME adapted RIFFA DMA Engine
+- nic_output_port_lookup_v1_0_0: nic output port lookup with registers
+- output_queues_v1_0_0: BRAM output queues with registers
+- switch_lite_output_port_lookup_v1_0_0: learning switch output port lookup, with registers-based lookup table, with registers
+
+4. DMA
+- RIFFA DMA Engine: https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/RIFFA-DMA-Engine
+  Operates over PCIe gen.2 x8
+- SUME-RIFFA DMA driver v1.0.0
+- rwaxi: application for registers access using SUME-RIFFA DMA driver
+- generate_register_read: application for testing a project's registers read access using rwaxi
+- generate_register_write: application for testing a project's registers write access using rwaxi
+
+5. Tools
+- Registers generation infrastructure 
+- NFTest: Simulation and hardware test harness 
+- pci_rescan_run: PCI bus rescan script, following FPGA reconfiguration 
+- load_bitfile: FPGA configuration script
+- interface_reconfig: generate configuration files for hardware tests
+- settings: local machine path and project settings
+
+6. Contributed documents:
+- SUME VC709 FMC: FMC pinout of NetFPGA SUME vs. Xilinx VC709 
+
+7. Contributed cores:
+- nf_sume_sfp_clk_init: Clock init for the SUME SFP clock (SI5324)
+
+8. For known issues please visit the following link:
+
+https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
