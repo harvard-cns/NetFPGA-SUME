@@ -383,14 +383,14 @@ always @(posedge axis_aclk)
                                                      > {(`REG_PKTIN_WIDTH-1){1'b1}} ? 1'b1 : pktin_reg[`REG_PKTIN_WIDTH-1];
                                                                
 		pktout_reg [`REG_PKTOUT_WIDTH-2:0]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_tvalid && m_axis_tlast && m_axis_tready) ;
-                pktout_reg [`REG_PKTOUT_WIDTH-1]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + + (m_axis_tvalid && m_axis_tlast && m_axis_tready)  > {(`REG_PKTOUT_WIDTH-1){1'b1}} ?
+                pktout_reg [`REG_PKTOUT_WIDTH-1]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_tvalid && m_axis_tlast && m_axis_tready)  > {(`REG_PKTOUT_WIDTH-1){1'b1}} ?
                                                                 1'b1 : pktout_reg [`REG_PKTOUT_WIDTH-1];
 		luthit_reg[`REG_LUTHIT_WIDTH -2: 0] <= #1  clear_counters | luthit_reg_clear ? 'h0  : luthit_reg[`REG_LUTHIT_WIDTH-2:0] + (lut_hit & lookup_done) ;
                 luthit_reg[`REG_LUTHIT_WIDTH-1] <= #1 clear_counters | luthit_reg_clear ? 1'h0 : luthit_reg_clear ? 'h0  : luthit_reg[`REG_LUTHIT_WIDTH-2:0] + (lut_hit & lookup_done)
                                                      > {(`REG_LUTHIT_WIDTH-1){1'b1}} ? 1'b1 : pktin_reg[`REG_LUTHIT_WIDTH-1];
                                                                
 		lutmiss_reg [`REG_LUTMISS_WIDTH-2:0]<= #1  clear_counters | lutmiss_reg_clear ? 'h0  : lutmiss_reg [`REG_LUTMISS_WIDTH-2:0] + (lut_miss & lookup_done) ;
-                lutmiss_reg [`REG_LUTMISS_WIDTH-1]<= #1  clear_counters | lutmiss_reg_clear ? 'h0  : lutmiss_reg [`REG_LUTMISS_WIDTH-2:0] + + (lut_miss & lookup_done)  > {(`REG_LUTMISS_WIDTH-1){1'b1}} ?
+                lutmiss_reg [`REG_LUTMISS_WIDTH-1]<= #1  clear_counters | lutmiss_reg_clear ? 'h0  : lutmiss_reg [`REG_LUTMISS_WIDTH-2:0] + (lut_miss & lookup_done)  > {(`REG_LUTMISS_WIDTH-1){1'b1}} ?
                                                                 1'b1 : lutmiss_reg [`REG_LUTMISS_WIDTH-1];
 
 		ip2cpu_debug_reg <= #1    `REG_DEBUG_DEFAULT+cpu2ip_debug_reg;
