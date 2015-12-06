@@ -32,26 +32,26 @@
 //
 /*******************************************************************************
  *  File:
- *        switch_lite_output_port_lookup.v
+ *        switch_output_port_lookup.v
  *
  *  Library:
- *        hw/std/cores/switch_lite_output_port_lookup
+ *        hw/std/cores/switch_output_port_lookup
  *
  *  Module:
- *        switch_lite_output_port_lookup
+ *        switch_output_port_lookup
  *
  *  Author:
  *        Gianni Antichi, Muhammad Shahbaz
  *        Modified by Noa Zilberman
  * 		
  *  Description:
- *        Output port lookup for the reference Switch Lite project
+ *        Output port lookup for the reference Switch project
  *
  */
 
 `include "output_port_lookup_cpu_regs_defines.v"
 
-module switch_lite_output_port_lookup
+module switch_output_port_lookup
 #(
     //Master AXI Stream Data Width
     parameter C_M_AXIS_DATA_WIDTH  = 256,

@@ -67,7 +67,7 @@ module barrier #(
 // Time to wait before declaring the system "stuck" when we have a barrier
 // and not all modules are ready to proceed.
 //
-parameter INACTIVITY_TIMEOUT = 2000;
+parameter INACTIVITY_TIMEOUT = 4000;
 time req_time;
 reg timeout;
 wire [NUM_PORTS:0] activity;

@@ -40,6 +40,7 @@ set bit_settings $::env(CONSTRAINTS)/generic_bit.xdc
 set project_constraints $::env(NF_DESIGN_DIR)/hw/constraints/nf_sume_general.xdc
 set nf_10g_constraints $::env(NF_DESIGN_DIR)/hw/constraints/nf_sume_10g.xdc
 
+set pcie_2_axilite_ip ../../../lib/hw/xilinx/cores/pcie2axilite_bridge/component.xml
 
 set test_name [lindex $argv 0] 
 
@@ -65,7 +66,7 @@ set_property is_enabled true [get_files ${bit_settings}]
 set_property is_enabled true [get_files ${project_constraints}]
 
 update_ip_catalog
-create_ip -name switch_output_port_lookup -vendor NetFPGA -library NetFPGA -module_name output_port_lookup_ip
+create_ip -name switch_lite_output_port_lookup -vendor NetFPGA -library NetFPGA -module_name output_port_lookup_ip
 set_property -dict [list CONFIG.C_BASEADDR $OUTPUT_PORT_LOOKUP_BASEADDR] [get_ips output_port_lookup_ip]
 set_property generate_synth_checkpoint false [get_files output_port_lookup_ip.xci]
 reset_target all [get_ips output_port_lookup_ip]

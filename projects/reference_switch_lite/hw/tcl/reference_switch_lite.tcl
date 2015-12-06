@@ -74,7 +74,7 @@ set_property constrset constraints [get_runs impl_1]
 # Project 
 #####################################
 update_ip_catalog
-create_ip -name switch_output_port_lookup -vendor NetFPGA -library NetFPGA -module_name output_port_lookup_ip
+create_ip -name switch_lite_output_port_lookup -vendor NetFPGA -library NetFPGA -module_name output_port_lookup_ip
 set_property generate_synth_checkpoint false [get_files output_port_lookup_ip.xci]
 reset_target all [get_ips output_port_lookup_ip]
 generate_target all [get_ips output_port_lookup_ip]
@@ -137,16 +137,12 @@ read_verilog "./hdl/top.v"
 create_run -flow {Vivado Synthesis 2014} synth
 #Setting Implementation options
 create_run impl -parent_run synth -flow {Vivado Implementation 2014} 
-set_property strategy Performance_LateBlockPlacement [get_runs impl_1]
 set_property steps.phys_opt_design.is_enabled true [get_runs impl_1]
-#set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
-#set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE AggressiveExplore [get_runs impl_1]
-set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE AlternateFlowWithRetiming [get_runs impl_1]
-set_property STEPS.PLACE_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
+set_property STEPS.PHYS_OPT_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
 set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.is_enabled true [get_runs impl_1]
 set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
 # The following implementation options will increase runtime, but get the best timing results
-#set_property strategy Performance_Explore [get_runs impl_1]
+set_property strategy Performance_Explore [get_runs impl_1]
 ### Solves synthesis crash in 2013.2
 ##set_param synth.filterSetMaxDelayWithDataPathOnly true
 set_property SEVERITY {Warning} [get_drc_checks UCIO-1]

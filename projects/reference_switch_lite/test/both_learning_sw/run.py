@@ -39,13 +39,14 @@ from NFTest import *
 import sys
 import os
 from scapy.layers.all import Ether, IP, TCP
-from reg_defines_reference_switch import *
+from reg_defines_reference_switch_lite import *
 
 phy2loop0 = ('../connections/conn', [])
 nftest_init(sim_loop = [], hw_config = [phy2loop0])
 
+
 if isHW():
-   # reset_counters (triggered by Write only event) for all the modules 
+   # Clearing the LUT_HIT and LUT_MISS by asserting the reset_counters
    nftest_regwrite(SUME_INPUT_ARBITER_0_RESET(), 0x1)
    nftest_regwrite(SUME_OUTPUT_PORT_LOOKUP_0_RESET(), 0x101)
    nftest_regwrite(SUME_OUTPUT_QUEUES_0_RESET(), 0x1)
@@ -68,19 +69,19 @@ for i in range(4):
     routerMAC.append("00:ca:fe:00:00:0%d"%(i+1))
     routerIP.append("192.168.%s.40"%i)
 
-num_broadcast = 20
+num_broadcast = 10
 
 pkts = []
+pkta = []
 for i in range(num_broadcast):
     pkt = make_IP_pkt(src_MAC="aa:bb:cc:dd:ee:ff", dst_MAC=routerMAC[0],
-                      EtherType=0x800, src_IP="192.168.0.1",
-                      dst_IP="192.168.1.1", pkt_len=60)
+                      src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=100)
 
     pkt.time = ((i*(1e-8)) + (2e-6))
     pkts.append(pkt)
     if isHW():
-        nftest_expect_phy('nf1', pkt)
         nftest_send_phy('nf0', pkt)
+        nftest_expect_phy('nf1', pkt)
     
 if not isHW():
     nftest_send_phy('nf0', pkts)
@@ -90,14 +91,33 @@ if not isHW():
 
 nftest_barrier()
 
+num_normal = 10
+
+for i in range(num_normal):
+    pkt = make_IP_pkt(dst_MAC="aa:bb:cc:dd:ee:ff", src_MAC=routerMAC[1],
+                     src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=100)
+    pkt.time = (((i+5)*(1e-8)) + (2e-6))
+    pkta.append(pkt)
+    if isHW():
+    	nftest_send_phy('nf1', pkt)
+    	nftest_expect_phy('nf0', pkt)
+
+if not isHW():
+    nftest_send_phy('nf1', pkta)
+    nftest_expect_phy('nf0', pkta)
+
+nftest_barrier()
+
 if isHW():
-    # Expecting the LUT_MISS counter to be incremented by 0x14, 20 packets
-    rres1=nftest_regread_expect(SUME_OUTPUT_PORT_LOOKUP_0_LUTMISS(), num_broadcast)
-    rres2=nftest_regread_expect(SUME_OUTPUT_PORT_LOOKUP_0_LUTHIT(), 0)
+    # Now we expect to see the lut_hit and lut_miss registers incremented and we
+    # verify this by doing a regread_expect
+    rres1= nftest_regread_expect(SUME_OUTPUT_PORT_LOOKUP_0_LUTHIT(), num_normal)
+    rres2= nftest_regread_expect(SUME_OUTPUT_PORT_LOOKUP_0_LUTMISS(), num_broadcast)
+    # List containing the return values of the reg_reads
     mres=[rres1,rres2]
 else:
+    nftest_regread_expect(SUME_OUTPUT_PORT_LOOKUP_0_LUTHIT(), num_normal) # lut_hit
     nftest_regread_expect(SUME_OUTPUT_PORT_LOOKUP_0_LUTMISS(), num_broadcast) # lut_miss
-    nftest_regread_expect(SUME_OUTPUT_PORT_LOOKUP_0_LUTHIT(), 0) # lut_hit
     mres=[]
 
 nftest_finish(mres)

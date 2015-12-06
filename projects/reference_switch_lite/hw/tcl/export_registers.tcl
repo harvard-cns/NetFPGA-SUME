@@ -38,7 +38,7 @@ set DEF_LIST {
 	{MICROBLAZE_AXI_INTC 0 0 ""} \
 	{INPUT_ARBITER 0 1 input_arbiter_v1_0_0/data/input_arbiter_regs_defines.txt} \
 	{OUTPUT_QUEUES 0 1 output_queues_v1_0_0/data/output_queues_regs_defines.txt} \
-	{OUTPUT_PORT_LOOKUP 0 1 switch_output_port_lookup_v1_0_0/data/output_port_lookup_regs_defines.txt} \
+	{OUTPUT_PORT_LOOKUP 0 1 switch_lite_output_port_lookup_v1_0_0/data/output_port_lookup_regs_defines.txt} \
 	{NF_10G_INTERFACE0 0 1 nf_10ge_interface_shared_v1_0_0/data/nf_10g_interface_shared_regs_defines.txt} \
 	{NF_10G_INTERFACE1 1 1 nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
 	{NF_10G_INTERFACE2 2 1 nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \

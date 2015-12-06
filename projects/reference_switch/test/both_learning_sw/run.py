@@ -75,9 +75,9 @@ pkts = []
 pkta = []
 for i in range(num_broadcast):
     pkt = make_IP_pkt(src_MAC="aa:bb:cc:dd:ee:ff", dst_MAC=routerMAC[0],
-                      src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=100)
+                      src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=512)
 
-    pkt.time = ((i*(1e-8)) + (1e-6))
+    pkt.time = ((i*(1e-8)) + (2e-6))
     pkts.append(pkt)
     if isHW():
         nftest_send_phy('nf0', pkt)
@@ -95,8 +95,8 @@ num_normal = 10
 
 for i in range(num_normal):
     pkt = make_IP_pkt(dst_MAC="aa:bb:cc:dd:ee:ff", src_MAC=routerMAC[1],
-                     src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=100)
-    pkt.time = (((i+5)*(1e-8)) + (1e-6))
+                     src_IP="192.168.0.1", dst_IP="192.168.1.1", pkt_len=512)
+    pkt.time = (((i+5)*(1e-8)) + (2e-6))
     pkta.append(pkt)
     if isHW():
     	nftest_send_phy('nf1', pkt)
