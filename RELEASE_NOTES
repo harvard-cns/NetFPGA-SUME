@@ -34,12 +34,16 @@ Before using this code, please check the release notes for 1.1.0rc below
 This release contains:
 
 1. Projects
-- Reference Switch Lite
-- CAM based Reference Switch
+- reference_switch_lite     ( former reference_switch project from release 1.0.0, uses register based output port lookup )
+- reference_switch          ( updated reference_switch project from release 1.0.0, uses CAM based output port lookup )
     
 2. Cores
-- CAM and TCAM cores: Xilinx's xapp1151 cores for CAM and TCAM
+- cam_v1_0_0 and tcam_v1_0_0:       Xilinx's xapp1151 cores for CAM and TCAM
+- switch_output_port_lookup_v1_0_0: learning switch output port lookup, with CAM based lookup table, with registers
 
-3. For known issues please visit the following link:
+3. Bug Fix
+- Fixing a typo error in multiple cores, where "+ +" appears instead of "+" in various counters.
+
+4. For known issues please visit the following link:
 
 https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
