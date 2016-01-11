@@ -1,4 +1,3 @@
-################################################################################
 #
 # Copyright (c) 2015 University of Cambridge
 # All rights reserved.
@@ -27,24 +26,22 @@
 #
 # @NETFPGA_LICENSE_HEADER_END@
 #
-GIT VERSION 1.1.0
 
-Before using this code, please check the release notes for 1.1.0 below
 
-This release contains:
 
-1. Projects
-- reference_switch_lite     ( uses register based output port lookup. Note: The reference_switch_lite was the reference_switch project in release 1.0.0)
-- reference_switch          ( uses a CAM based output port lookupp )
-    
-2. Cores
-- cam_v1_0_0                        :   a CAM core based on Xilinx's xapp1151 core
-- tcam_v1_0_0                       :   a TCAM core based on Xilinx's xapp1151 core
-- switch_output_port_lookup_v1_0_0  :   learning switch output port lookup, with CAM based lookup table, with registers
+Follow the instruction below to create a TCAM IP for NetFPGA SUME platform step by step. The TCAM IPs created by the instruction is based on SRL only to support Ternary mode. More detailed information of the TCAM can be found on xapp1151_Param_CAM.pdf in Xilinx web site. TCAM IPs on SUME platform are separated into TCAM and CAM, but they are almost the same and share the same libraries.
 
-3. Bug Fix
-- Fixing a typo error in multiple cores, where "+ +" appears instead of "+" in various counters.
+1) At first, users need to find and download xapp1151 module on Xilinx web site. After searching 'xapp1151', xapp1151_Param_CAM.zip and related documents can be downloaded from the web site.
 
-4. For known issues please visit the following link:    https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
-   The open issues can also be seen on:                 https://github.com/NetFPGA/NetFPGA-SUME-live/issues
-   The procedure to open new issue tickets:             https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Before-opening-issues
+2) Copy xapp1151_Param_CAM.zip into the NetFPGA-SUME-live/lib/hw/xilinx/cores/tcam_v1_0_0/ and go to the 'tcam_v1_0_0' directory.
+
+3) Run 'make update' to decompress and update the xapp1151 libraries.
+
+4) Run 'make sim' and find what is the simulation result. Before run 'make sim', source Vivado license to run the tool commands.
+
+5) Run 'make' to create IP. 
+
+
+If it is succeeded, now users can call the TCAM IP in the project for block design and ip creation.
+
+(Note: Whenever you run 'make clean' in the $SUME_FOLDER, you need to run again 'make' into tcam_v1_0_0 folder, to create the IP.)
