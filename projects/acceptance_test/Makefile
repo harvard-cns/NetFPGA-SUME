@@ -1,6 +1,7 @@
 #
 # Copyright (c) 2015 Digilent Inc.
 # Copyright (c) 2015 Tinghui Wang (Steve)
+# Copyright (c) 2015 Noa Zilberman
 # All rights reserved.
 #
 # File:
@@ -11,6 +12,7 @@
 #
 # Author:
 # Tinghui Wang (Steve)
+# Modified by Noa Zilberman
 #
 # Description:
 # This makefile is used to generate and compile acceptance_test project 
@@ -37,9 +39,9 @@
 LIB_REPO = ip_repo/
 LIB_HW_DIR_INSTANCES := $(shell cd $(LIB_REPO) && find . -mindepth 3 -maxdepth 3 -type d)
 
-all: ddr3A, ddr3B, qdrA, qdrB, qdrC, pcie, fmc_ibert, fmc_gtwizard, fmc_aurora, qth_ibert, qth_gtwizard, qth_aurora, 10g_loopback, gpio
+all: ddr3A, ddr3B, qdrA, qdrB, qdrC, pcie, fmc_ibert, fmc_gtwizard, fmc_aurora, qth_ibert, qth_gtwizard, pcie_ibert, qth_aurora, 10g_loopback, gpio
 
-ddr3A ddr3B qdrA qdrB qdrC pcie fmc_ibert fmc_gtwizard fmc_aurora qth_ibert qth_gtwizard qth_aurora 10g_loopback gpio sata:
+ddr3A ddr3B qdrA qdrB qdrC pcie fmc_ibert fmc_gtwizard fmc_aurora qth_ibert qth_gtwizard qth_aurora pcie_ibert 10g_loopback gpio sata:
 	make -C hw PROJ=$@ project
 	make -C hw PROJ=$@ compile
 	make -C hw PROJ=$@ export_to_sdk
@@ -60,6 +62,7 @@ clean:
 	for lib in $(LIB_HW_DIR_INSTANCES) ; do\
 		make -C ip_repo/$$lib clean; \
 	done;
+	rm -rfv vivado*;\
 
 distclean:
 	for lib in $(LIB_HW_DIR_INSTANCES) ; do\
@@ -67,3 +70,4 @@ distclean:
 	done;
 	make -C hw distclean
 	make -C sw/embedded distclean
+	rm -rfv vivado*;\
