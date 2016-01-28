@@ -52,11 +52,37 @@ import threading
 import serial
 import logging
 import logging.config
+import glob
 try:
-    from serial.tools.list_ports import comports
+    import serial.tools.list_ports_posix as lpp
 except ImportError:
     comports = None
 from subprocess import Popen, PIPE
+
+def NfSume_usb_lsusb_string(sysfs_path):
+    bus, dev = os.path.basename(os.path.realpath(sysfs_path)).split('-')
+    dev = lpp.popen(['cat', sysfs_path + '/devnum'])
+    try:
+        desc = lpp.popen(['lsusb', '-v', '-s', '%s:%s' % (bus, dev)])
+        # descriptions from device
+        iManufacturer = lpp.re_group('iManufacturer\s+\w+ (.+)', desc)
+        iProduct = lpp.re_group('iProduct\s+\w+ (.+)', desc)
+        iSerial = lpp.re_group('iSerial\s+\w+ (.+)', desc) or ''
+        # descriptions from kernel
+        idVendor = lpp.re_group('idVendor\s+0x\w+ (.+)', desc)
+        idProduct = lpp.re_group('idProduct\s+0x\w+ (.+)', desc)
+        # create descriptions. prefer text from device, fall back to the others
+        return '%s %s %s' % (iManufacturer or idVendor, iProduct or idProduct, iSerial)
+    except IOError:
+        return base
+
+def NfSume_comports():
+    devices = glob.glob('/dev/ttyUSB*')
+    return [(d, lpp.describe(d), lpp.hwinfo(d)) for d in devices]
+
+if lpp.comports:
+    lpp.usb_lsusb_string = NfSume_usb_lsusb_string
+    comports = lpp.comports
 
 # Dump Available COM Ports
 def dumpComPortList():
@@ -290,6 +316,7 @@ class NfSumeTest(object):
 
     # Refresh Serial Ports
     def RefreshSerial(self):
+        global comports
         self.localLogger.info('refresh Serial Ports')
         self.serialArray = []
         if comports:
@@ -666,12 +693,14 @@ class testFrame(wx.Frame):
         
         # Serial Combox
         self.serialComboBox = wx.ComboBox(parent=self, choices=self.testStruct.serialArray, style=wx.CB_READONLY | wx.CB_DROPDOWN)
+        self.serialCheckBox = wx.CheckBox(parent=self, label='List only USB devices: ')
         self.serialRefreshButton = wx.Button(parent=self, label='Refresh')
         self.serialStartTestButton = wx.Button(parent=self, label='Start Test')
 
         topSizer.Add(toolSizer, 0, wx.EXPAND)
         topSizer.Add(testSizer, 1, wx.EXPAND)
 
+        toolSizer.Add(self.serialCheckBox, proportion=0)
         toolSizer.Add(self.serialComboBox, proportion=1, flag=wx.EXPAND)
         toolSizer.Add(self.serialRefreshButton, proportion=0)
         toolSizer.Add(self.serialStartTestButton, proportion=0)
@@ -683,7 +712,8 @@ class testFrame(wx.Frame):
         testSizer.Add(self.testSummarySizer, 1, wx.EXPAND)
     
         self.SetSizer(topSizer, wx.EXPAND)
-    
+
+        self.Bind(wx.EVT_CHECKBOX, self.OnSerialCheckBox, self.serialCheckBox)
         self.Bind(wx.EVT_COMBOBOX, self.OnSerialComboBox, self.serialComboBox)
         self.Bind(wx.EVT_BUTTON, self.OnSerialRefresh, self.serialRefreshButton)
         self.Bind(wx.EVT_BUTTON, self.StartTest, self.serialStartTestButton)
@@ -695,6 +725,15 @@ class testFrame(wx.Frame):
     def OnSerialRefresh(self, e):
         self.localLogger.debug('Refresh Serial Button Clicked, Refresh Serial Ports List')
         self.testStruct.RefreshSerial()
+
+    def OnSerialCheckBox(self, e):
+        global comports
+        if self.serialCheckBox.GetValue():
+            comports = NfSume_comports
+            self.testStruct.RefreshSerial()
+        else:
+            comports = lpp.comports
+	    self.testStruct.RefreshSerial()
 
     def OnSerialComboBox(self, e):
         # Get Serial Port Selected
