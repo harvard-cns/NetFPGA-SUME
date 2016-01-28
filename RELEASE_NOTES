@@ -27,23 +27,20 @@
 #
 # @NETFPGA_LICENSE_HEADER_END@
 #
-GIT VERSION 1.1.0
+GIT VERSION 1.2.0
 
-Before using this code, please check the release notes for 1.1.0 below
+Before using this code, please check the release notes for 1.2.0rc below
 
 This release contains:
 
 1. Projects
-- reference_switch_lite     ( uses register based output port lookup. Note: The reference_switch_lite was the reference_switch project in release 1.0.0)
-- reference_switch          ( uses a CAM based output port lookupp )
-    
-2. Cores
-- cam_v1_0_0                        :   a CAM core based on Xilinx's xapp1151 core
-- tcam_v1_0_0                       :   a TCAM core based on Xilinx's xapp1151 core
-- switch_output_port_lookup_v1_0_0  :   learning switch output port lookup, with CAM based lookup table, with registers
+   - Acceptance Test: Added PCIe ibert test
+
+2. Patch
+   - NfSumeTest.py: Added a checkbox in the GUI of the acceptance_test to narrow down USB device listing
 
 3. Bug Fix
-- Fixing a typo error in multiple cores, where "+ +" appears instead of "+" in various counters.
+   - Fixing a typo error in the Makefile of the acceptance_test project
 
 4. For known issues please visit the following link:    https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
    The open issues can also be seen on:                 https://github.com/NetFPGA/NetFPGA-SUME-live/issues
