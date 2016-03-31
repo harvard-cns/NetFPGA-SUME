@@ -30,29 +30,29 @@
 Acceptance test bitfiles are available for direct downloads from the University of Cambridge servers:
 
 1. 10G loopback test
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.1.0/acceptance_test/nf_sume_10g_loopback.bit
-md5 checksum: 6f57f99b01b0f8363d46f17cba5c6cfa
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.2.0/acceptance_test/nf_sume_10g_loopback.bit
+md5 checksum: 85499c88c51414d64cb7f124683f351e
 
 2. DDR3A test
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.1.0/acceptance_test/nf_sume_ddr3A.bit
-md5 checksum: bbfd8aa7ecb9a65496c0dc50e42e54db
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.2.0/acceptance_test/nf_sume_ddr3A.bit
+md5 checksum: 2df7189e035f66041dab9bf3781edb5c
 
 3. DDR3B test
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.1.0/acceptance_test/nf_sume_ddr3B.bit
-md5 checksum: ea73c6e1415799e54486e6b607b753ac
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.2.0/acceptance_test/nf_sume_ddr3B.bit
+md5 checksum: b7a94ffcf263d2bb915a0257c3e20b9e
 
 4. GPIO test
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.1.0/acceptance_test/nf_sume_gpio.bit
-md5 checksum: dded07019a5384157d429a42dea8274f
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.2.0/acceptance_test/nf_sume_gpio.bit
+md5 checksum: b95224944fd4217c936c349ddbbdfd9a
 
 5. QDRA test
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.1.0/acceptance_test/nf_sume_qdrA.bit
-md5 checksum: bbb3b9a138ef9a9fa4e53ec582aa2610
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.2.0/acceptance_test/nf_sume_qdrA.bit
+md5 checksum: 077d2fd7cda5db93371ad3f707816b60
 
 6. QDRB test
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.1.0/acceptance_test/nf_sume_qdrB.bit
-md5 checksum: 9386f2cec3a797ffdcc50cd0d36ab354
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.2.0/acceptance_test/nf_sume_qdrB.bit
+md5 checksum: 2aad96e67f86c9cd360679eb596bf99e
 
 7. QDRC test
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.1.0/acceptance_test/nf_sume_qdrC.bit
-md5 checksum: 5d40ffbbdc3da54982a24775c4ace94e
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.2.0/acceptance_test/nf_sume_qdrC.bit
+md5 checksum: 5eab4c3b9113d28fcd23a7ddfabbdde1
