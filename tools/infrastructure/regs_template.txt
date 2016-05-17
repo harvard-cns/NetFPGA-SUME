@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2015 Noa Zilberman, Jingyun Zhang
+# Copyright (c) 2015 Noa Zilberman, Jingyun Zhang, Salvator Galea
 # All rights reserved.
 #
 # This software was developed by Stanford University and the University of Cambridge Computer Laboratory 
@@ -260,7 +260,7 @@ def write_tbFile_header(tbFile):
 #A funtion that writes the ports of the regs moduledefault
 ##################################################################
 
-def write_regs_ports(regsFile,regsDict):
+def write_regs_ports(regsFile,regsDict, memsDict):
 
    regsFile.write('`include "'+module_name+'_cpu_regs_defines.v"\n\
 \
@@ -305,6 +305,14 @@ parameter C_S_AXI_ADDR_WIDTH    = 32\n\
        regsFile.write('    output reg [`REG_'+(entry['name']).upper()+'_BITS]    cpu2ip_'+entry['name']+'_reg,\n')
        regsFile.write('    output reg                          cpu2ip_'+entry['name']+'_reg_clear,\n')
 
+   for entry in memsDict:
+       regsFile.write('    output  reg [`MEM_'+(entry['name']).upper()+'_ADDR_BITS]    '+entry['name']+'_addr,\n')
+       regsFile.write('    output  reg [`MEM_'+(entry['name']).upper()+'_DATA_BITS]    '+entry['name']+'_data,\n')
+       regsFile.write('    output  reg                         '+entry['name']+'_rd_wrn,\n')
+       regsFile.write('    output  reg                         '+entry['name']+'_cmd_valid,\n')
+       regsFile.write('    input       [`MEM_'+(entry['name']).upper()+'_DATA_BITS]    '+entry['name']+'_reply,\n')
+       regsFile.write('    input                               '+entry['name']+'_reply_valid,\n')       
+  
    regsFile.write('\n\
     // AXI Lite ports\n\
     input                                     S_AXI_ACLK,\n\
@@ -333,7 +341,7 @@ parameter C_S_AXI_ADDR_WIDTH    = 32\n\
 ##################################################################
 #A funtion that writes the wires and regs of the registers module
 ##################################################################
-def write_regs_wires(regsFile,regsDict):
+def write_regs_wires(regsFile,regsDict,memsDict):
 
     regsFile.write('\n\
     // AXI4LITE signals\n\
@@ -364,8 +372,18 @@ def write_regs_wires(regsFile,regsDict):
             regsFile.write('\
     reg                                 '+entry['name']+'_reg_clear_d;\n')
 
-    
+    for entry in regsDict:
+            if entry['type']=="RWSI" or entry['type']=="ROI" :
+                regsFile.write('\
+    reg      [`REG_'+(entry['name']).upper()+'_BITS] '+entry['name']+'_reg;\n')
 
+    for entry in regsDict:
+            if entry['type']=="RWI" :
+                regsFile.write('\
+    reg      [`REG_'+(entry['name']).upper()+'_BITS] '+entry['name']+'_reg;\n\
+    reg      [`REG_'+(entry['name']).upper()+'_BITS] '+entry['name']+'_reg_internal;\n\
+    reg      '+entry['name']+'_reg_update;\n') 
+    
     for entry in regsDict:
         if entry['endian']=="big" :
             regsFile.write('\n\
@@ -750,6 +768,29 @@ def write_logic(regsFile,regsDict):
             for (byte_index = 0; byte_index <= (`REG_'+entry['name'].upper()+'_WIDTH/8-1); byte_index = byte_index +1)\n\
                 cpu2ip_'+entry['name']+'_reg[byte_index*8 +: 8] <= reg_'+entry['name']+'_default_little[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];\n');
 
+
+        if entry['type']=="RWSI" :
+            if entry['endian']=="little" :
+                regsFile.write('\
+            '+entry['name']+'_reg <= #1 `REG_'+entry['name'].upper()+'_DEFAULT;\n');
+            
+        if entry['endian']=="big" :
+                regsFile.write('\
+            for (byte_index = 0; byte_index <= (`REG_'+entry['name'].upper()+'_WIDTH/8-1); byte_index = byte_index +1)\n\
+                '+entry['name']+'_reg[byte_index*8 +: 8] <= reg_'+entry['name']+'_default_little[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];\n');
+            
+
+        if entry['type']=="RWI" :      
+            if entry['endian']=="little" :
+                regsFile.write('\
+            '+entry['name']+'_reg_internal <= #1 `REG_'+entry['name'].upper()+'_DEFAULT;\n');
+
+            if entry['endian']=="big" :
+                regsFile.write('\
+             for (byte_index = 0; byte_index <= (`REG_'+entry['name'].upper()+'_WIDTH/8-1); byte_index = byte_index +1)\n\
+                '+entry['name']+'_reg_internal[byte_index*8 +: 8] <= reg_'+entry['name']+'_default_little[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8];\n');
+
+
     if not(first_item):
         regsFile.write('\
         end\n\
@@ -798,6 +839,45 @@ def write_logic(regsFile,regsDict):
                         end\n\
                 end\n');
 
+        if entry['type']=="RWSI" :
+            if entry['endian']=="little" :
+                regsFile.write('\
+            //'+entry['name'].capitalize()+' Register\n\
+                `REG_'+entry['name'].upper()+'_ADDR : begin\n\
+                    for ( byte_index = 0; byte_index <= (`REG_'+entry['name'].upper()+'_WIDTH/8-1); byte_index = byte_index +1)\n\
+                        if (S_AXI_WSTRB[byte_index] == 1) begin\n\
+                            '+entry['name']+'_reg[byte_index*8 +: 8] <=  S_AXI_WDATA[byte_index*8 +: 8]; //static register;\n\
+                        end\n\
+                end\n');
+            if entry['endian']=="big" :
+                regsFile.write('\
+            //'+entry['name'].capitalize()+' Register\n\
+                `REG_'+entry['name'].upper()+'_ADDR : begin\n\
+                    for (byte_index = 0; byte_index <= (`REG_'+entry['name'].upper()+'_WIDTH/8-1); byte_index = byte_index +1)\n\
+                        if (S_AXI_WSTRB[byte_index] == 1) begin\n\
+                            '+entry['name']+'_reg[byte_index*8 +: 8] <= S_AXI_WDATA[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8]; //dynamic register;\n\
+                        end\n\
+                end\n');
+
+        if entry['type']=="RWI" :
+            if entry['endian']=="little" :
+                regsFile.write('\
+            //'+entry['name'].capitalize()+' Register\n\
+                `REG_'+entry['name'].upper()+'_ADDR : begin\n\
+                    for ( byte_index = 0; byte_index <= (`REG_'+entry['name'].upper()+'_WIDTH/8-1); byte_index = byte_index +1)\n\
+                        if (S_AXI_WSTRB[byte_index] == 1) begin\n\
+                            '+entry['name']+'_reg_internal[byte_index*8 +: 8] <=  S_AXI_WDATA[byte_index*8 +: 8]; //static register;\n\
+                        end\n\
+                end\n');
+            if entry['endian']=="big" :
+                regsFile.write('\
+            //'+entry['name'].capitalize()+' Register\n\
+                `REG_'+entry['name'].upper()+'_ADDR : begin\n\
+                    for (byte_index = 0; byte_index <= (`REG_'+entry['name'].upper()+'_WIDTH/8-1); byte_index = byte_index +1)\n\
+                        if (S_AXI_WSTRB[byte_index] == 1) begin\n\
+                            '+entry['name']+'_reg_internal[byte_index*8 +: 8] <= S_AXI_WDATA[(C_S_AXI_DATA_WIDTH/8-byte_index-1)*8 +: 8]; //dynamic register;\n\
+                        end\n\
+                end\n');
 
     if not (first_item):
         regsFile.write('\
@@ -805,9 +885,15 @@ def write_logic(regsFile,regsDict):
                 end\n\
 \n\
             endcase\n\
-        end\n\
-    end\n');
-
+        end\n');
+                        
+    for entry in regsDict:
+       if entry['type']=="RWI" :
+          regsFile.write('   '+entry['name']+'_reg_update <= reg_wren && (axi_awaddr == `REG_'+entry['name'].upper()+'_ADDR);\n');
+    
+    if not (first_item):
+             regsFile.write('  end\n');
+    
 #Handle Read/write registers, clear on read
 
     first_item=True;
@@ -983,7 +1069,7 @@ def write_logic(regsFile,regsDict):
         case ( axi_araddr /*S_AXI_ARADDR ^ C_BASE_ADDRESS*/)\n');
     
     for entry in regsDict:
-        if  entry['type']=="RO" or entry['type']=="ROC" or entry['type']=="RWS":
+        if  entry['type']=="RO" or entry['type']=="ROC" or entry['type']=="RWS" or entry['type']=="RWI" or entry['type']=="RWSI" or entry['type']=="ROI":
             if entry['endian']=="little" :
                 regsFile.write('\
             //'+entry['name'].capitalize()+' Register\n\
@@ -1089,27 +1175,204 @@ def write_logic(regsFile,regsDict):
 
 # end of write_logic
 
+##################################################################
+# a function that writes the logic behind the indirect registers access
+##################################################################
+def write_indirect(regsFile,memsDict):
+  regsFile.write('\n\
+    //////////////////////////////////\n\
+    // Implement Indirect Access\n\
+	//////////////////////////////////\n\
+	\n');
+	
+  regsFile.write('\n\
+  //--------------------- Internal Parameters-------------------------\n\
+   localparam NUM_INDIRECT_STATES                = 6;\n\
+   localparam IDLE_INDIRECT_STATE                = 1;\n\
+   localparam WRITE_INDIRECT_STATE               = 2;\n\
+   localparam WRITE_WAIT_INDIRECT_STATE          = 4;\n\
+   localparam READ_INDIRECT_STATE                = 8;\n\
+   localparam READ_WAIT_INDIRECT_STATE           = 16;\n\
+   localparam INDIRECT_DONE_STATE                = 32;\n\
+   localparam INDIRECT_WRITE                     = 0;\n\
+   localparam INDIRECT_READ                      = 1;\n\
+   localparam INDIRECT_WRITE_TA                  = 1;\n\
+   localparam INDIRECT_WRITE_WS                  = 0;\n\
+  //------------------------------------------------------------------\n\
+   \n\
+   reg  [NUM_INDIRECT_STATES-1:0]           indirect_state, indirect_state_next, indirect_state_last;\n\
+   wire                            indirect_trigger;\n\
+   wire                            indirect_type;\n\
+   reg                             indirect_status, indirect_status_next;\n\
+   wire [3:0]                      indirect_address_increment;\n\
+   wire                            indirect_write_type;\n\
+   wire [10:0]                     indirect_timeout;\n\
+   wire [15:0]                     indirect_repeat_count;\n\
+   reg  [15:0]                     indirect_remaining,indirect_remaining_next;\n\
+   reg  [10:0]                     indirect_timeout_count, indirect_timeout_count_next;\n\
+   reg                             indirect_reply_valid;\n\
+   reg  [31:0]                     indirect_address,indirect_address_next;\n\
+   reg  [3:0]                      indirect_memory_select,indirect_memory_select_next;\n\
+   wire                             indirect_command_done;\n\
+   \n\
+   assign   indirect_trigger = indirectcommand_reg[0];\n\
+   assign   indirect_type    = indirectcommand_reg[4];\n\
+   assign   indirect_address_increment = indirectconfig_reg[3:0];\n\
+   assign   indirect_write_type = indirectconfig_reg[4];\n\
+   assign   indirect_timeout    = indirectconfig_reg[15:5];\n\
+   assign   indirect_repeat_count = indirectconfig_reg[31:16];\n\
+   \n\
+ always @(*) begin\n\
+      indirect_state_next   = indirect_state;\n\
+      indirect_status_next  = indirect_status;\n\
+      indirect_remaining_next = indirect_remaining;\n\
+      indirect_timeout_count_next = indirect_timeout_count;\n\
+      indirect_address_next      = indirect_address;\n\
+      indirect_memory_select_next = indirect_memory_select;\n\
+      case(indirect_state)\n\
+        IDLE_INDIRECT_STATE: begin\n\
+     	   if(indirect_trigger) begin\n\
+     	      indirect_state_next= (indirect_type == INDIRECT_WRITE) ? WRITE_INDIRECT_STATE : READ_INDIRECT_STATE;\n\
+     	      indirect_remaining_next = (indirect_repeat_count == 0) ? 16\'h1 : indirect_repeat_count;\n\
+     	      indirect_timeout_count_next   = indirect_timeout;\n\
+     	      indirect_address_next   =  indirectaddress_reg; //This is the address in the user register\n\
+     	      indirect_memory_select_next = indirectaddress_reg[31:28];\n\
+     	   end\n\
+	    end\n\
+	    \n\
+	    READ_INDIRECT_STATE: begin\n\
+		     indirect_state_next = READ_WAIT_INDIRECT_STATE;\n\
+	    end\n\
+	    READ_WAIT_INDIRECT_STATE: begin\n\
+	         if (indirect_reply_valid) begin\n\
+	            indirect_state_next = INDIRECT_DONE_STATE;\n\
+	            indirect_status_next =0;\n\
+	         end\n\
+	         if (indirect_timeout_count==0) begin\n\
+	            indirect_state_next = INDIRECT_DONE_STATE;\n\
+	            indirect_status_next = 1; \n\
+	         end\n\
+	         indirect_timeout_count_next = indirect_timeout_count-1;\n\
+	     end\n\
+	     WRITE_INDIRECT_STATE: begin\n\
+	         indirect_state_next = WRITE_WAIT_INDIRECT_STATE;\n\
+	     end\n\
+	     WRITE_WAIT_INDIRECT_STATE:  begin\n\
+	         if (((indirect_write_type == INDIRECT_WRITE_TA) && (indirect_reply_valid)) || ((indirect_write_type == INDIRECT_WRITE_WS) && (indirect_timeout_count==0))) begin\n\
+	           indirect_remaining_next = indirect_remaining - 1;\n\
+	           indirect_address_next = indirect_address+indirect_address_increment;\n\
+	           if (indirect_remaining==1) begin\n\
+	              indirect_state_next = INDIRECT_DONE_STATE;\n\
+	           end\n\
+	         end\n\
+	         else \n\
+	           if (indirect_timeout_count==0) begin\n\
+	         	indirect_state_next = INDIRECT_DONE_STATE;\n\
+	         	indirect_status_next = 1; \n\
+	         end\n\
+             indirect_timeout_count_next = indirect_timeout_count==0 ? 0 : indirect_timeout_count-1;\n\
+	     end\n\
+	     INDIRECT_DONE_STATE: begin\n\
+	        indirect_state_next= IDLE_INDIRECT_STATE;\n\
+	     end\n\
+	     default: begin\n\
+	         indirect_state_next= IDLE_INDIRECT_STATE;\n\
+	     end\n\
+      endcase // case(state)\n\
+   end // always @ (*)\n\
+   \n\
+    assign indirect_command_done = (indirect_state==INDIRECT_DONE_STATE);\n\
+   \n\
+   always @(posedge clk) begin\n\
+      if(~resetn_sync) begin\n\
+         indirect_state <= #1 IDLE_INDIRECT_STATE;\n\
+         indirect_state_last <= #1 IDLE_INDIRECT_STATE;\n\
+         indirect_status <= #1 1\'b0;\n\
+         indirect_remaining <= #1 0;\n\
+         indirect_timeout_count <= #1 0;\n\
+         indirect_address   <= #1 0;\n\
+         indirect_memory_select <= #1 0;\n\
+         indirectcommand_reg <= #1 `REG_INDIRECTCOMMAND_DEFAULT;\n\
+      end\n\
+      else begin\n\
+         indirect_state <= #1 indirect_state_next;\n\
+         indirect_state_last <= #1 indirect_state;\n\
+         indirect_status <= #1 indirect_status_next;\n\
+         indirect_remaining <= #1 indirect_remaining_next;\n\
+         indirect_timeout_count <= #1 indirect_timeout_count_next;\n\
+         indirect_address   <= #1  indirect_address_next;\n\
+         indirect_memory_select <= #1 indirect_memory_select_next;\n\
+         indirectcommand_reg <= #1  indirect_command_done ? {indirect_status,indirectcommand_reg[7:4],4\'h0} : \n\
+                                    indirectcommand_reg_update ? indirectcommand_reg_internal: \n\
+                                    indirectcommand_reg;\n\
+      end\n\
+   end   \n\
+   \n');
 
+
+  for entry in memsDict:
+     regsFile.write('\n\
+       \n\
+       always @(posedge clk) begin\n\
+         if  (~resetn_sync) begin\n\
+           '+entry['name']+'_addr <= #1 0;\n\
+           '+entry['name']+'_data <= #1 0;\n\
+           '+entry['name']+'_rd_wrn<= #1 0;\n\
+           '+entry['name']+'_cmd_valid <= #1 0;\n\
+         end \n\
+         else begin\n\
+           '+entry['name']+'_addr <= #1 indirect_address;\n\
+           '+entry['name']+'_data <= #1 indirectwrdata_reg;\n\
+           '+entry['name']+'_rd_wrn<= #1 indirect_type;\n\
+           '+entry['name']+'_cmd_valid <= #1 ('+entry['address']+'==(indirect_memory_select<<28)) && ((indirect_state == WRITE_INDIRECT_STATE) || (indirect_state == READ_INDIRECT_STATE));\n\
+         end \n\
+       end\n');
+       
+  regsFile.write('\n\
+       always @(posedge clk) begin\n\
+          if  (~resetn_sync) begin\n\
+             indirectreply_reg <= #1 0;\n\
+             indirect_reply_valid <= #1 0; \n\
+          end \n\
+          else begin \n\
+             indirectreply_reg <= #1 ' );
+  for entry in memsDict:
+      regsFile.write(entry['address']+'==(indirect_memory_select<<28) ? '+entry['name']+'_reply :');
+  regsFile.write(' 0;\n\
+      indirect_reply_valid <= #1 ');
+  for entry in memsDict:
+      regsFile.write(entry['address']+'==(indirect_memory_select<<28) ? '+entry['name']+'_reply_valid :');
+  regsFile.write(' 0;\n\
+          end \n\
+        end\n\
+  \n');
+# end of write_indirect
 
 ##################################################################
 #write all the defines to the defs module
 ##################################################################
-def write_defines(defsFile,regsDict):
+def write_defines(defsFile,regsDict, memsDict):
 
    for entry in regsDict:
-      defsFile.write('\n\
-           `define  REG_'+entry['name'].upper()+'_BITS				'+entry['bits']+'\n\
-           `define  REG_'+entry['name'].upper()+'_WIDTH				'+entry['width']+'\n\
-           `define  REG_'+entry['name'].upper()+'_DEFAULT			'+entry['default']+'\n\
-           `define  REG_'+entry['name'].upper()+'_ADDR				'+entry['addr']+'\n');
+      defsFile.write(	'\n`define  REG_'+entry['name'].upper()+'_BITS\t\t\t\t'+entry['bits']+
+			'\n`define  REG_'+entry['name'].upper()+'_WIDTH\t\t\t\t'+entry['width']+
+			'\n`define  REG_'+entry['name'].upper()+'_DEFAULT\t\t\t\t'+entry['default']+
+			'\n`define  REG_'+entry['name'].upper()+'_ADDR\t\t\t\t'+entry['addr']+'\n');
 
+   for entry in memsDict:
+      defsFile.write(	'\n`define  MEM_'+entry['name'].upper()+'_DATA_BITS\t\t\t\t'+entry['data_bits']+
+			'\n`define  MEM_'+entry['name'].upper()+'_ADDR_BITS\t\t\t\t'+entry['addr_bits']+
+			'\n`define  MEM_'+entry['name'].upper()+'_WIDTH\t\t\t\t'+entry['width']+
+			'\n`define  MEM_'+entry['name'].upper()+'_DEPTH\t\t\t\t'+str(2**(int(entry['addr_bits'].split(':')[0])+1))+
+			'\n`define  MEM_'+entry['name'].upper()+'_ADDR\t\t\t\t'+entry['address']+'\n');
+ 
 #end of write_defines
 
 
 ##################################################################
 #write all the register offsets to the h template (to be included)
 ##################################################################
-def write_h(hFile,regsDict):
+def write_h(hFile,regsDict,memsDict):
 
    hFile.write('##########This text should be copied to the head file #############\n\
    #Registers offset definitions\n\n');
@@ -1119,17 +1382,28 @@ def write_h(hFile,regsDict):
       hFile.write('#define SUME_'+block_name+'_'+entry['name'].upper()+'_0_DEFAULT 0x'+entry['default'].split("'h")[-1]+'\n');
       hFile.write('#define SUME_'+block_name+'_'+entry['name'].upper()+'_0_WIDTH '+entry['width']+'\n');
 
+   for entry in memsDict:
+     hFile.write('#define SUME_'+block_name+'_MEM_'+entry['name'].upper()+'_0_WIDTH '+entry['width']+'\n');
+     hFile.write('#define SUME_'+block_name+'_MEM_'+entry['name'].upper()+'_0_DEPTH '+str(2**(int(entry['addr_bits'].split(':')[0])+1))+'\n');
+     hFile.write('#define SUME_'+block_name+'_MEM_'+entry['name'].upper()+'_0_ADDRESS 0x'+entry['address'].split("'h")[-1]+'\n');
+
 #end of write_h
 
 ##################################################################
 #write all the register offsets to the tcl file
 ##################################################################
-def write_tcl(tclFile,regsDict):
+def write_tcl(tclFile,regsDict,memsDict):
 
    for entry in regsDict:
      tclFile.write('set '+block_name+'_REGS_'+entry['name'].upper()+'_0_OFFSET 0x'+entry['addr'][4:]+'\n');
      tclFile.write('set '+block_name+'_REGS_'+entry['name'].upper()+'_0_DEFAULT 0x'+entry['default'].split("'h")[-1]+'\n');
      tclFile.write('set '+block_name+'_REGS_'+entry['name'].upper()+'_0_WIDTH '+entry['width']+'\n');
+
+   for entry in memsDict:
+     tclFile.write('set '+block_name+'_MEM_'+entry['name'].upper()+'_0_WIDTH '+entry['width']+'\n');
+     tclFile.write('set '+block_name+'_MEM_'+entry['name'].upper()+'_0_DEPTH '+str(2**(int(entry['addr_bits'].split(':')[0])+1))+'\n');
+     tclFile.write('set '+block_name+'_MEM_'+entry['name'].upper()+'_0_ADDRESS 0x'+entry['address'].split("'h")[-1]+'\n');
+     
 
 #end of write_tcl
 
@@ -1137,18 +1411,22 @@ def write_tcl(tclFile,regsDict):
 #write all the register offsets to table
 ##################################################################
 
-def write_tb(tbFile,regsDict):
+def write_tb(tbFile,regsDict,memsDict):
    for entry in regsDict:
       tbFile.write('#define SUME '+block_name+' '+entry['name'].upper()+' OFFSET 0x'+entry['addr'][4:]+'\n');
       tbFile.write('#define SUME '+block_name+' '+entry['name'].upper()+' DEFAULT 0x'+entry['default'].split("'h")[-1]+'\n');
       tbFile.write('#define SUME '+block_name+' '+entry['name'].upper()+' WIDTH '+entry['width']+'\n');
 
+   for entry in memsDict:
+      tbFile.write('#define  SUME '+block_name+' MEM_'+entry['name'].upper()+' WIDTH '+entry['width']+'\n');
+      tbFile.write('#define  SUME '+block_name+' MEM_'+entry['name'].upper()+' DEPTH '+str(2**(int(entry['addr_bits'].split(':')[0])+1))+'\n');
+      tbFile.write('#define  SUME '+block_name+' MEM_'+entry['name'].upper()+' ADDRESS 0x'+entry['address'].split("'h")[-1]+'\n');
 #end of write_tb
 
 ##################################################################
 #write top module's template (i.e. include this in your module)
 ##################################################################
-def write_module_template(moduleFile,regsDict):
+def write_module_template(moduleFile,regsDict,memsDict):
 
 #first write static inclusions....
   moduleFile.write('`include "'+module_name+'_cpu_regs_defines.v"\n\
@@ -1231,6 +1509,15 @@ def write_module_template(moduleFile,regsDict):
        moduleFile.write('    wire                             cpu2ip_'+entry['name']+'_reg_clear;\n')
        moduleFile.write('    wire                             cpu2ip_'+entry['name']+'_reg_clear_d;\n')
 
+  for entry in memsDict:
+       moduleFile.write('    wire      [`MEM_'+(entry['name']).upper()+'_ADDR_BITS]    '+entry['name']+'_addr;\n')
+       moduleFile.write('    wire      [`MEM_'+(entry['name']).upper()+'_DATA_BITS]    '+entry['name']+'_data;\n')
+       moduleFile.write('    wire                              '+entry['name']+'_rd_wrn;\n')
+       moduleFile.write('    wire                              '+entry['name']+'_cmd_valid;\n')
+       moduleFile.write('    reg       [`MEM_'+(entry['name']).upper()+'DATA_BITS]    '+entry['name']+'_reply;\n')
+       moduleFile.write('    reg                               '+entry['name']+'_reply_valid;\n')       
+
+
 #instantiate registers module
   moduleFile.write('\n//Registers section\n\
  '+module_name+'_cpu_regs\n\
@@ -1289,6 +1576,15 @@ def write_module_template(moduleFile,regsDict):
        moduleFile.write('   .ip2cpu_'+entry['name']+'_reg          (ip2cpu_'+entry['name']+'_reg),\n')
        moduleFile.write('   .cpu2ip_'+entry['name']+'_reg          (cpu2ip_'+entry['name']+'_reg),\n')
        moduleFile.write('   .cpu2ip_'+entry['name']+'_reg_clear    (cpu2ip_'+entry['name']+'_reg_clear),\n')
+
+  for entry in memsDict:
+       moduleFile.write('    .'+entry['name']+'_addr          ('+entry['name']+'_addr),\n')
+       moduleFile.write('    .'+entry['name']+'_data          ('+entry['name']+'_data),\n')
+       moduleFile.write('    .'+entry['name']+'_rd_wrn        ('+entry['name']+'_rd_wrn),\n')
+       moduleFile.write('    .'+entry['name']+'_cmd_valid     ('+entry['name']+'_cmd_valid ),\n')
+       moduleFile.write('    .'+entry['name']+'_reply         ('+entry['name']+'_reply),\n')
+       moduleFile.write('    .'+entry['name']+'_reply_valid   ('+entry['name']+'_reply_valid),\n')       
+
 
   moduleFile.write('   // Global Registers - user can select if to use\n\
    .cpu_resetn_soft(),//software reset, after cpu module\n\
@@ -1443,10 +1739,12 @@ write_tbFile_header(tbFile)
 #Write the regs module
 #first the ports...
 regsDict=create_regs_list()
-write_regs_ports(regsFile,regsDict)
+memsDict=create_mems_list()
+write_regs_ports(regsFile,regsDict, memsDict)
+
 
 #then the wires...
-write_regs_wires(regsFile,regsDict)
+write_regs_wires(regsFile,regsDict, memsDict)
 
 #resets etc.....
 sync_reset(regsFile)
@@ -1456,6 +1754,8 @@ sync_reset(regsFile)
 write_logic(regsFile,regsDict)
 
 #indirect access...
+if memsDict:
+  write_indirect(regsFile,memsDict)
 
 #tables...
 
@@ -1463,19 +1763,19 @@ write_logic(regsFile,regsDict)
 regsFile.write('endmodule\n')
 
 #write the defs module
-write_defines(defsFile,regsDict)
+write_defines(defsFile,regsDict, memsDict)
 
 #write the tcl module
-write_tcl(tclFile,regsDict)
+write_tcl(tclFile,regsDict, memsDict)
 
 #write the default text to be copied to the h module
-write_h(hFile,regsDict)
+write_h(hFile,regsDict, memsDict)
 
 #write the default text to table file
-write_tb(tbFile,regsDict)
+write_tb(tbFile,regsDict, memsDict)
 
 #writes the default text to be copied to the top module
-write_module_template(moduleFile,regsDict)
+write_module_template(moduleFile,regsDict, memsDict)
 
 
 # Close the output files

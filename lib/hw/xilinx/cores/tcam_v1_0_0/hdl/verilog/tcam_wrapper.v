@@ -31,28 +31,30 @@
 
 module tcam_wrapper
 #(
-   parameter  C_TCAM_ADDR_WIDTH = 4,
-   parameter  C_TCAM_DATA_WIDTH = 16
+   parameter  C_TCAM_ADDR_WIDTH 	= 4,
+   parameter  C_TCAM_DATA_WIDTH 	= 16,
+   parameter  C_TCAM_ADDR_TYPE  	= 0,
+   parameter  C_TCAM_MATCH_ADDR_WIDTH	= 4
 )
 (
-   input                                     CLK,
-   input                                     WE,
-   input          [C_TCAM_ADDR_WIDTH-1:0]    WR_ADDR,
-   input          [C_TCAM_DATA_WIDTH-1:0]    DIN,
-   input          [C_TCAM_DATA_WIDTH-1:0]    DATA_MASK,
-   output                                    BUSY,
+   input					CLK,
+   input					WE,
+   input          [C_TCAM_ADDR_WIDTH-1:0]	WR_ADDR,
+   input          [C_TCAM_DATA_WIDTH-1:0]	DIN,
+   input          [C_TCAM_DATA_WIDTH-1:0]	DATA_MASK,
+   output					BUSY,
 
-   input          [C_TCAM_DATA_WIDTH-1:0]    CMP_DIN,
-   input          [C_TCAM_DATA_WIDTH-1:0]    CMP_DATA_MASK,
-   output                                    MATCH,
-   output         [C_TCAM_ADDR_WIDTH-1:0]    MATCH_ADDR
+   input          [C_TCAM_DATA_WIDTH-1:0]	CMP_DIN,
+   input          [C_TCAM_DATA_WIDTH-1:0]	CMP_DATA_MASK,
+   output                                    	MATCH,
+   output         [C_TCAM_MATCH_ADDR_WIDTH-1:0]	MATCH_ADDR
 );
 
 localparam  C_TCAM_DATA_DEPTH = 2**C_TCAM_ADDR_WIDTH;
 
 cam_top 
 #(
-   .C_ADDR_TYPE               (  0                    ),
+   .C_ADDR_TYPE               (  C_TCAM_ADDR_TYPE     ),
    .C_DEPTH                   (  C_TCAM_DATA_DEPTH    ),
    .C_FAMILY                  (  "virtex5"            ),
    .C_HAS_CMP_DIN             (  1                    ),

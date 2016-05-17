@@ -139,8 +139,9 @@ module mac_cam_lut
    // 1 cycle read latency, 2 cycles write latency, width=48, depth=16
    cam 
 #(
-   .C_TCAM_ADDR_WIDTH   (4), 
-   .C_TCAM_DATA_WIDTH   (16) 
+   .C_TCAM_ADDR_WIDTH   (LUT_DEPTH_BITS),
+   .C_TCAM_MATCH_ADDR_WIDTH (LUT_DEPTH_BITS),
+   .C_TCAM_DATA_WIDTH   (48) 
 )
 mac_cam
      (  
@@ -157,8 +158,9 @@ mac_cam
       .ADDR_WR                          (cam_wr_addr[LUT_DEPTH_BITS-1:0]));
 
    cam #(
-   .C_TCAM_ADDR_WIDTH   (4), 
-   .C_TCAM_DATA_WIDTH   (16) 
+   .C_TCAM_ADDR_WIDTH   (LUT_DEPTH_BITS), 
+   .C_TCAM_MATCH_ADDR_WIDTH (LUT_DEPTH_BITS),
+   .C_TCAM_DATA_WIDTH   (48) 
     )
 mac_cam_learn
      (
