@@ -1,5 +1,5 @@
 #!/bin/sh -f
-xv_path="/local/scratch-3/jh896/ecad/Vivado/2014.4"
+xv_path="add your Xilinx tool path"
 ExecStep()
 {
 "$@"
