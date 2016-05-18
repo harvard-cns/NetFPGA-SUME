@@ -258,14 +258,6 @@ else:
 #Dump packet data in axi stream formats.
 with open( os.path.join( script_dir, 'packet_stim_%s_%x.axi' % (args.txrx, int(args.port_no)) ), 'w' ) as f:
     axitools.axis_dump( pkts, f, axi_width, 1e-9 )
-with open( os.path.join( script_dir, 'packet_stim_%s_%x_tdata.axi' % (args.txrx, int(args.port_no)) ), 'w' ) as f:
-    axitools.axis_tdata( pkts, f, axi_width, 1e-9 )
-with open( os.path.join( script_dir, 'packet_stim_%s_%x_tuser.axi' % (args.txrx, int(args.port_no)) ), 'w' ) as f:
-    axitools.axis_tuser( pkts, f, axi_width, 1e-9 )
-with open( os.path.join( script_dir, 'packet_stim_%s_%x_tlast.axi' % (args.txrx, int(args.port_no)) ), 'w' ) as f:
-    axitools.axis_tlast( pkts, f, axi_width, 1e-9 )
-with open( os.path.join( script_dir, 'packet_stim_%s_%x_tstrb.axi' % (args.txrx, int(args.port_no)) ), 'w' ) as f:
-    axitools.axis_tstrb( pkts, f, axi_width, 1e-9 )
 wrpcap(os.path.join( script_dir, 'packet_stim_%s_%x.pcap' % (args.txrx, int(args.port_no)) ), pkts)
 
 print 'Finish packet generation!'

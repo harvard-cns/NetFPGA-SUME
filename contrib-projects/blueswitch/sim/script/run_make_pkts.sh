@@ -37,29 +37,14 @@ PORTNO=0			# 0~3
 RXTX=rx			# Tx or Rx
 DATAWTH=64		# EQ to INTEGER*32
 PKTTYPE=UDP
-SRCIP=10.0.0.1
-DSCIP=10.0.0.2
-SPORT_NO=10
-DPORT_NO=15
+SRCIP=192.168.1.1
+DSCIP=192.168.1.2
+SPORT_NO=50
+DPORT_NO=53
 VLAN=801
 ALIGN=1
 
 ./make_pkts.py --packet_length $PKTLENGTH --packet_no $PKTNO --port_no $PORTNO --txrx $RXTX --data_width $DATAWTH --src_ip $SRCIP --dst_ip $DSCIP --packet_type $PKTTYPE --sport_no $SPORT_NO --dport_no $DPORT_NO
-# --vlan $VLAN
-
-PKTLENGTH=128	# Byte
-PKTNO=20			# Number of Packets
-PORTNO=1			# 0~3
-RXTX=rx			# Tx or Rx
-DATAWTH=64		# EQ to INTEGER*32
-PKTTYPE=UDP
-SRCIP=192.168.1.2
-DSCIP=192.168.1.1
-SPORT_NO=10
-DPORT_NO=15
-ALIGN=1
-
-./make_pkts.py --packet_length $PKTLENGTH --packet_no $PKTNO --port_no $PORTNO --txrx $RXTX --data_width $DATAWTH --src_ip $SRCIP --dst_ip $DSCIP --sport_no $SPORT_NO --dport_no $DPORT_NO
 
 mv *.axi ../tv/
 
