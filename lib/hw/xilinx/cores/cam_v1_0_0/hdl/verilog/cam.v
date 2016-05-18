@@ -31,26 +31,31 @@
 
 module cam 
 #(
-   parameter C_TCAM_ADDR_WIDTH   = 5, 
-   parameter C_TCAM_DATA_WIDTH   = 32 
+   parameter C_TCAM_ADDR_WIDTH  	= 5, 
+   parameter C_TCAM_DATA_WIDTH   	= 32,
+   parameter C_TCAM_ADDR_TYPE		= 0,
+   parameter C_TCAM_MATCH_ADDR_WIDTH	= 5
 )
 (
-   input                                     CLK,
-   input                                     WE,
-   input          [C_TCAM_ADDR_WIDTH-1:0]    ADDR_WR,
-   input          [C_TCAM_DATA_WIDTH-1:0]    DIN,
-   output                                    BUSY,
+   input					CLK,
+   input					WE,
+   input          [C_TCAM_ADDR_WIDTH-1:0]	ADDR_WR,
+   input          [C_TCAM_DATA_WIDTH-1:0]	DIN,
+   output					BUSY,
 
-   input          [C_TCAM_DATA_WIDTH-1:0]    CMP_DIN,
-   output                                    MATCH,
-   output         [C_TCAM_ADDR_WIDTH-1:0]    MATCH_ADDR
+   input          [C_TCAM_DATA_WIDTH-1:0]	CMP_DIN,
+   output					MATCH,
+   output         [C_TCAM_MATCH_ADDR_WIDTH-1:0]	MATCH_ADDR
 );
 
+localparam  C_TCAM_DATA_DEPTH = 2**C_TCAM_ADDR_WIDTH;
 
 cam_wrapper
 #(
-   .C_TCAM_ADDR_WIDTH   (  C_TCAM_ADDR_WIDTH    ),
-   .C_TCAM_DATA_WIDTH   (  C_TCAM_DATA_WIDTH    )
+   .C_TCAM_ADDR_WIDTH		(  C_TCAM_ADDR_WIDTH    ),
+   .C_TCAM_DATA_WIDTH		(  C_TCAM_DATA_WIDTH    ),
+   .C_TCAM_ADDR_TYPE		(  C_TCAM_ADDR_TYPE     ),
+   .C_TCAM_MATCH_ADDR_WIDTH	(  C_TCAM_MATCH_ADDR_WIDTH   )
 )
 cam_wrapper
 (
