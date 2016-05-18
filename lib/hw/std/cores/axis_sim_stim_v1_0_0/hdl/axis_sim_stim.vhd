@@ -221,6 +221,7 @@ begin
 
             -- data transfer: a cycle containing active data
             	else
+                     wait for 0.5ns;
                     	M_AXIS_TVALID <= '1';
 			activity_stim <= '1';
                 -- parse out each component of the stimulus
