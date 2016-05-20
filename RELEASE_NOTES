@@ -27,21 +27,37 @@
 #
 # @NETFPGA_LICENSE_HEADER_END@
 #
-GIT VERSION 1.2.0
+GIT VERSION 1.3.0
 
-Before using this code, please check the release notes for 1.2.0 below
+Before using this code, please check the release notes for 1.3.0rc below
 
 This release contains:
 
 1. Projects
-   - Acceptance Test: Added PCIe ibert test
+   - Reference router
 
-2. Patch
-   - NfSumeTest.py: Added a checkbox in the GUI of the acceptance_test to narrow down USB device listing
+2. Contributed projects
+   - BlueSwitch
 
-3. Bug Fix
-   - Fixing a typo error in the Makefile of the acceptance_test project
+3. Cores
+   - reference_router_v1_0_0  :  Implmentation of IPv4 reference Router 
+   
+4. Contributed cores
+   - nf_endianess_manager_v1_0_0 :  Data conversion between Little <-> Big endianess
+   - nf_sume_blueswitch_v1_0_0   :  Switch implementing multi-table, compliant with OpenFlow protocol version 1.1 or later
+   - nf_sume_crossbar_v1_0_0     :  Part of the BlueSwitch project
 
-4. For known issues please visit the following link:    https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
+5. Tools
+   - Registers generation infrastructure: Updated version 2, support of indirect register access
+   
+6. Patch
+   - reference_switch_v1_0_1  :  Fix a typo in cam instantiation
+                                 Update the implemention run, to more aggressive timing closure mode
+   - xparam2regdefines.py     :  Fix bug which produced multiple hashes
+   
+7. Xilinx cores
+   - cam_v1_1_0/tcam_v1_1_0   :  Added two parameters in the wrappers to support the ADDR_TYPE and MATCH_ADDR_WIDTH of these ip cores
+
+8. For known issues please visit the following link:    https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
    The open issues can also be seen on:                 https://github.com/NetFPGA/NetFPGA-SUME-live/issues
    The procedure to open new issue tickets:             https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Before-opening-issues
