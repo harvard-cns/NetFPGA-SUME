@@ -33,7 +33,7 @@ Follow the instruction below to create a TCAM IP for NetFPGA SUME platform step 
 
 1) At first, users need to find and download xapp1151 module on Xilinx web site. After searching 'xapp1151', xapp1151_Param_CAM.zip and related documents can be downloaded from the web site.
 
-2) Copy xapp1151_Param_CAM.zip into the NetFPGA-SUME-live/lib/hw/xilinx/cores/cam_v1_0_0/ and go to the 'cam_v1_0_0' directory.
+2) Copy xapp1151_Param_CAM.zip into the NetFPGA-SUME-live/lib/hw/xilinx/cores/cam_v*_*_*/ and go to the 'cam_v*_*_*' directory.
 
 3) Run 'make update' to decompress and update the xapp1151 libraries.
 
@@ -44,4 +44,4 @@ Follow the instruction below to create a TCAM IP for NetFPGA SUME platform step 
 
 If it is succeeded, now users can call the TCAM IP in the project for block design and ip creation.
 
-(Note: Whenever you run 'make clean' in the $SUME_FOLDER, you need to run again 'make' into cam_v1_0_0 folder, to create the IP.)
+(Note: Whenever you run 'make clean' in the $SUME_FOLDER, you need to run again 'make' into cam_v*_*_* folder, to create the IP.)
