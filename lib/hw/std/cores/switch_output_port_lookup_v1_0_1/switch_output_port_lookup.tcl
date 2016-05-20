@@ -34,7 +34,7 @@ set design switch_output_port_lookup
 set top switch_output_port_lookup
 set device xc7vx690t-3-ffg1761
 set proj_dir ./synth
-set ip_version 1.00
+set ip_version 1.01
 set lib_name NetFPGA
 #####################################
 # set IP paths
