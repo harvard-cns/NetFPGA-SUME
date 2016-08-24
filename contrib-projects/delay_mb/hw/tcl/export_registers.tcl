@@ -38,7 +38,7 @@ set DEF_LIST {
 	{MICROBLAZE_AXI_INTC 0 0 ""} \
 	{DELAY0 0 1 delay_v1_0_0/data/delay_regs_defines.txt} \
 	{DELAY1 1 1 delay_v1_0_0/data/delay_regs_defines.txt} \
-	{DELAY2 2 1 delay_v1_0_0/data/delay_regs_defines.txt} \
+	{RATE_LIMITER0 0 1 rate_limiter_v1_0_0/data/rate_limiter_regs_defines.txt} \
 	{NF_10G_INTERFACE0 0 1 nf_10ge_interface_shared_v1_0_0/data/nf_10g_interface_shared_regs_defines.txt} \
 	{NF_10G_INTERFACE1 1 1 nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
 	{NF_10G_INTERFACE2 2 1 nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \

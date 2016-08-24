@@ -48,7 +48,7 @@ if isHW():
    # reset_counters (triggered by Write only event) for all the modules 
    nftest_regwrite(SUME_DELAY_0_RESET(), 0x1)
    nftest_regwrite(SUME_DELAY_1_RESET(), 0x1)
-   nftest_regwrite(SUME_DELAY_2_RESET(), 0x1)
+   nftest_regwrite(SUME_RATE_LIMITER_0_RESET(), 0x1)
    nftest_regwrite(SUME_NF_10G_INTERFACE_SHARED_0_RESET(), 0x1)
    nftest_regwrite(SUME_NF_10G_INTERFACE_1_RESET(), 0x1)
    nftest_regwrite(SUME_NF_10G_INTERFACE_2_RESET(), 0x1)
@@ -58,9 +58,10 @@ if isHW():
 
 nftest_start()
 
-nftest_regwrite(SUME_DELAY_0_DELAYVAL(), 0x6400)
-nftest_regwrite(SUME_DELAY_1_DELAYVAL(), 0x6400)
-nftest_regwrite(SUME_DELAY_2_DELAYVAL(), 0x6400)
+nftest_regwrite(SUME_DELAY_0_DELAYVAL(), 0x64)
+nftest_regwrite(SUME_DELAY_1_DELAYVAL(), 0x64)
+nftest_regwrite(SUME_RATE_LIMITER_0_RATEBASE(), 0x2)
+nftest_regwrite(SUME_RATE_LIMITER_0_RATEVALID(), 0x1)
 
 nftest_barrier()
 
@@ -91,8 +92,7 @@ if not isHW():
     nftest_expect_phy('nf1', pkts)
     nftest_send_phy('nf1', pkts)
     nftest_expect_phy('nf0', pkts)
-    nftest_send_phy('nf2', pkts)
-    nftest_expect_phy('nf3', pkts)
+
 
 
 nftest_barrier()

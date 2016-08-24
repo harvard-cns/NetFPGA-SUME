@@ -72,6 +72,11 @@ set_property generate_synth_checkpoint false [get_files delay_ip.xci]
 reset_target all [get_ips delay_ip]
 generate_target all [get_ips delay_ip]
 
+source $::env(NF_DESIGN_DIR)/hw/create_ip/rate_limiter.tcl
+create_ip -name rate_limiter -vendor NetFPGA -library NetFPGA -module_name rate_limiter_ip
+set_property generate_synth_checkpoint false [get_files rate_limiter_ip.xci]
+reset_target all [get_ips rate_limiter_ip]
+generate_target all [get_ips rate_limiter_ip]
 
 #Add ID block
 create_ip -name blk_mem_gen -vendor xilinx.com -library ip -version 8.2 -module_name identifier_ip

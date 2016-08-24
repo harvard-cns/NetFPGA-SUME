@@ -186,6 +186,13 @@ module nf_datapath #(
 
     );
     
+
+    wire [C_S_AXIS_DATA_WIDTH - 1:0]         m_axis_delay0_tdata;
+    wire [((C_S_AXIS_DATA_WIDTH / 8)) - 1:0] m_axis_delay0_tkeep;
+    wire [C_S_AXIS_TUSER_WIDTH-1:0]          m_axis_delay0_tuser;
+    wire                                     m_axis_delay0_tvalid;
+    wire                                     m_axis_delay0_tready;
+    wire                                     m_axis_delay0_tlast;
   
    
   //Port 0->1 delay
@@ -193,12 +200,12 @@ module nf_datapath #(
     delay_0  (
       .axis_aclk(axis_aclk), 
       .axis_resetn(axis_resetn), 
-      .m_axis_tdata (m_axis_1_tdata), 
-      .m_axis_tkeep (m_axis_1_tkeep), 
-      .m_axis_tuser (m_axis_1_tuser), 
-      .m_axis_tvalid(m_axis_1_tvalid), 
-      .m_axis_tready(m_axis_1_tready), 
-      .m_axis_tlast (m_axis_1_tlast), 
+      .m_axis_tdata (m_axis_delay0_tdata), 
+      .m_axis_tkeep (m_axis_delay0_tkeep), 
+      .m_axis_tuser (m_axis_delay0_tuser), 
+      .m_axis_tvalid(m_axis_delay0_tvalid), 
+      .m_axis_tready(m_axis_delay0_tready), 
+      .m_axis_tlast (m_axis_delay0_tlast), 
       .s_axis_tdata (s_axis_0_tdata), 
       .s_axis_tkeep (s_axis_0_tkeep), 
       .s_axis_tuser (s_axis_0_tuser), 
@@ -223,6 +230,46 @@ module nf_datapath #(
       .S_AXI_BRESP(S0_AXI_BRESP),  
       .S_AXI_BVALID(S0_AXI_BVALID), 
       .S_AXI_AWREADY(S0_AXI_AWREADY),
+      .S_AXI_ACLK (axi_aclk), 
+      .S_AXI_ARESETN(axi_resetn)
+
+    );
+
+  //Port 0->1 rate_limit
+       rate_limiter_ip 
+    rate_limiter_0  (
+      .axis_aclk(axis_aclk), 
+      .axis_resetn(axis_resetn), 
+      .m_axis_tdata (m_axis_1_tdata), 
+      .m_axis_tkeep (m_axis_1_tkeep), 
+      .m_axis_tuser (m_axis_1_tuser), 
+      .m_axis_tvalid(m_axis_1_tvalid), 
+      .m_axis_tready(m_axis_1_tready), 
+      .m_axis_tlast (m_axis_1_tlast), 
+      .s_axis_tdata (m_axis_delay0_tdata), 
+      .s_axis_tkeep (m_axis_delay0_tkeep), 
+      .s_axis_tuser (m_axis_delay0_tuser), 
+      .s_axis_tvalid(m_axis_delay0_tvalid), 
+      .s_axis_tready(m_axis_delay0_tready), 
+      .s_axis_tlast (m_axis_delay0_tlast), 
+
+      .S_AXI_AWADDR(S2_AXI_AWADDR), 
+      .S_AXI_AWVALID(S2_AXI_AWVALID),
+      .S_AXI_WDATA(S2_AXI_WDATA),  
+      .S_AXI_WSTRB(S2_AXI_WSTRB),  
+      .S_AXI_WVALID(S2_AXI_WVALID), 
+      .S_AXI_BREADY(S2_AXI_BREADY), 
+      .S_AXI_ARADDR(S2_AXI_ARADDR), 
+      .S_AXI_ARVALID(S2_AXI_ARVALID),
+      .S_AXI_RREADY(S2_AXI_RREADY), 
+      .S_AXI_ARREADY(S2_AXI_ARREADY),
+      .S_AXI_RDATA(S2_AXI_RDATA),  
+      .S_AXI_RRESP(S2_AXI_RRESP),  
+      .S_AXI_RVALID(S2_AXI_RVALID), 
+      .S_AXI_WREADY(S2_AXI_WREADY), 
+      .S_AXI_BRESP(S2_AXI_BRESP),  
+      .S_AXI_BVALID(S2_AXI_BVALID), 
+      .S_AXI_AWREADY(S2_AXI_AWREADY),
       .S_AXI_ACLK (axi_aclk), 
       .S_AXI_ARESETN(axi_resetn)
 
@@ -270,7 +317,7 @@ module nf_datapath #(
     );      
     
   //Port 2->3 delay
-       delay_ip 
+ /*      delay_ip 
     delay_2  (
       .axis_aclk(axis_aclk), 
       .axis_resetn(axis_resetn), 
@@ -307,7 +354,7 @@ module nf_datapath #(
       .S_AXI_ACLK (axi_aclk), 
       .S_AXI_ARESETN(axi_resetn)
 
-    );      
+    );    */  
     
     
 endmodule
