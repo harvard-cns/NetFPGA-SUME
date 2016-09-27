@@ -119,12 +119,16 @@ module delay
    wire     [`REG_DELAYVAL_BITS] delayval_reg;
 
 
-   reg      [31:0] time_counter;
+   reg      [32:0] time_counter;
    wire     [31:0] fifo_time;
    reg      time_expired;
 
    wire clear_counters;
    wire reset_registers;
+   wire [15:0] fifo_data_count;
+
+   wire in_fifo_nearly_full,in_fifo_empty;
+   wire   in_fifo_rd_en;
 
    function integer log2;
       input integer number;
@@ -146,33 +150,16 @@ module delay
          .almost_full                    (in_fifo_nearly_full),
          .empty                          (in_fifo_empty),
          // Inputs
-         .din                            ({time_counter,s_axis_tlast, s_axis_tuser, s_axis_tkeep, s_axis_tdata}),
+         .din                            ({time_counter[31:0],s_axis_tlast, s_axis_tuser, s_axis_tkeep, s_axis_tdata}),
          .wr_en                          (s_axis_tvalid & ~in_fifo_nearly_full),
          .rd_en                          (in_fifo_rd_en),
-	 .data_count			(),
+	 .data_count			(fifo_data_count),
          .rst                          (~axis_resetn),
          .clk                            (axis_aclk));
 
-   // ------------- Logic ----------------
+    assign s_axis_tready = !in_fifo_nearly_full;
 
-/*delay_fifo your_instance_name (
-  .clk(clk),                  // input wire clk
-  .rst(rst),                  // input wire rst
-  .din(din),                  // input wire [448 : 0] din
-  .wr_en(wr_en),              // input wire wr_en
-  .rd_en(rd_en),              // input wire rd_en
-  .dout(dout),                // output wire [448 : 0] dout
-  .full(full),                // output wire full
-  .almost_full(almost_full),  // output wire almost_full
-  .empty(empty),              // output wire empty
-  .data_count(data_count)    // output wire [15 : 0] data_count
-);*/
-
-   assign s_axis_tready = !in_fifo_nearly_full;
-
- 
-
-   // Handle output
+  // Handle output
    assign in_fifo_rd_en = m_axis_tready && !in_fifo_empty && time_expired;
    assign m_axis_tvalid = !in_fifo_empty && time_expired;
 
@@ -238,7 +225,7 @@ always @(posedge axis_aclk)
 		time_counter <= #1 32'h0;
 	end
 	else begin
-		time_counter <= #1 time_counter+32'h1;
+		time_counter <= #1 (time_counter==33'hFFFFFFFF) ? 33'h0 : time_counter+33'h1;
 	end
 	
 
@@ -264,7 +251,16 @@ always @(posedge axis_aclk)
 		pktout_reg [`REG_PKTOUT_WIDTH-2:0]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_tlast && m_axis_tvalid && m_axis_tready) ;
                 pktout_reg [`REG_PKTOUT_WIDTH-1]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_tlast && m_axis_tvalid && m_axis_tready)  > {(`REG_PKTOUT_WIDTH-1){1'b1}} ?
                                                                 1'b1 : pktout_reg [`REG_PKTOUT_WIDTH-1];
-		ip2cpu_debug_reg <= #1    `REG_DEBUG_DEFAULT+cpu2ip_debug_reg;
+		ip2cpu_debug_reg [31:16]<= #1    fifo_data_count;
+                ip2cpu_debug_reg [0]<= #1     m_axis_tvalid;
+		ip2cpu_debug_reg [1]<= #1     !in_fifo_empty;
+		ip2cpu_debug_reg [2]<= #1     time_expired;
+		ip2cpu_debug_reg [3]<= #1     m_axis_tready;
+		ip2cpu_debug_reg [4]<= #1     in_fifo_rd_en;
+                ip2cpu_debug_reg [5]<= #1     in_fifo_nearly_full ? 1'b1 : reset_reg[8] ? 1'b0 : ip2cpu_debug_reg [5];
+                ip2cpu_debug_reg [6]<= #1      |(delayval_reg);
+                ip2cpu_debug_reg [15:8]<= #1   {time_counter[31:28],time_counter[3:0]};
+
         end
 
 //Expired time logic
@@ -273,8 +269,8 @@ always @(posedge axis_aclk)
 	   time_expired <= #1 1'b1;
 	end
 	else begin
-	   time_expired <= (time_counter+1) > (fifo_time+delayval_reg)  ||
-                             ((fifo_time > (time_counter+1)) && (time_counter + 33'h100000001) > (fifo_time+delayval_reg)) ? 
+           time_expired <= #1 ((time_counter+33'h1) > (fifo_time+delayval_reg+33'h0))  ||
+                             ((fifo_time > (time_counter+33'h1)) && ((time_counter + 33'h100000001) > (fifo_time+delayval_reg+33'h0))) ? 
                              1'b1 : 1'b0;
 	end
  

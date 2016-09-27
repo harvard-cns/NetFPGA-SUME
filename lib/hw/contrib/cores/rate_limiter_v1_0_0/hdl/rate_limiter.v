@@ -125,6 +125,10 @@ module rate_limiter
 
    wire clear_counters;
    wire reset_registers;
+   wire in_fifo_nearly_full;
+   wire in_fifo_empty;
+   wire in_fifo_rd_en;
+   wire [13:0] data_count;
 
 
    rate_limiter_fifo
@@ -140,24 +144,11 @@ module rate_limiter
          .din                            ({s_axis_tlast, s_axis_tuser, s_axis_tkeep, s_axis_tdata}),
          .wr_en                          (s_axis_tvalid & ~in_fifo_nearly_full),
          .rd_en                          (in_fifo_rd_en),
-	 .data_count			(),
-         .rst                          (~axis_resetn),
-         .clk                            (axis_aclk));
+	 .data_count			(data_count),
+         .rst                           (~axis_resetn),
+         .clk                           (axis_aclk));
 
-   // ------------- Logic ----------------
 
-/*rate_limiter_fifo your_instance_name (
-  .clk(clk),                  // input wire clk
-  .rst(rst),                  // input wire rst
-  .din(din),                  // input wire [448 : 0] din
-  .wr_en(wr_en),              // input wire wr_en
-  .rd_en(rd_en),              // input wire rd_en
-  .dout(dout),                // output wire [448 : 0] dout
-  .full(full),                // output wire full
-  .almost_full(almost_full),  // output wire almost_full
-  .empty(empty),              // output wire empty
-  .data_count(data_count)    // output wire [15 : 0] data_count
-);*/
 
    assign s_axis_tready = !in_fifo_nearly_full;
 
@@ -230,7 +221,7 @@ always @(posedge axis_aclk)
 		time_counter <= #1 0;
 	end
 	else begin
-		time_counter <= #1 (ratebase_reg == 0) || (time_counter+1 == ratebase_reg) ? 0 : time_counter + 1;
+		time_counter <= #1 (ratebase_reg == 0) || (ratevalid_reg == 0) || (time_counter+1 == ratebase_reg) ? 0 : time_counter + 1;
 	end
 	
 
@@ -256,7 +247,8 @@ always @(posedge axis_aclk)
 		pktout_reg [`REG_PKTOUT_WIDTH-2:0]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_tlast && m_axis_tvalid && m_axis_tready) ;
                 pktout_reg [`REG_PKTOUT_WIDTH-1]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_tlast && m_axis_tvalid && m_axis_tready)  > {(`REG_PKTOUT_WIDTH-1){1'b1}} ?
                                                                 1'b1 : pktout_reg [`REG_PKTOUT_WIDTH-1];
-		ip2cpu_debug_reg <= #1    `REG_DEBUG_DEFAULT+cpu2ip_debug_reg;
+		ip2cpu_debug_reg [13:0] <= #1   data_count; //indicate buffer status
+                ip2cpu_debug_reg [31:14] <= #1  18'h0;
         end
 
 //Expired time logic

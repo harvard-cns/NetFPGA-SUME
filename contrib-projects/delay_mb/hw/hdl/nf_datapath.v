@@ -315,47 +315,7 @@ module nf_datapath #(
       .S_AXI_ARESETN(axi_resetn)
 
     );      
-    
-  //Port 2->3 delay
- /*      delay_ip 
-    delay_2  (
-      .axis_aclk(axis_aclk), 
-      .axis_resetn(axis_resetn), 
-      .m_axis_tdata (m_axis_2_tdata), 
-      .m_axis_tkeep (m_axis_2_tkeep), 
-      .m_axis_tuser (m_axis_2_tuser), 
-      .m_axis_tvalid(m_axis_2_tvalid), 
-      .m_axis_tready(m_axis_2_tready), 
-      .m_axis_tlast (m_axis_2_tlast), 
-      .s_axis_tdata (s_axis_2_tdata), 
-      .s_axis_tkeep (s_axis_2_tkeep), 
-      .s_axis_tuser (s_axis_2_tuser), 
-      .s_axis_tvalid(s_axis_2_tvalid), 
-      .s_axis_tready(s_axis_2_tready), 
-      .s_axis_tlast (s_axis_2_tlast), 
-
-      .S_AXI_AWADDR(S2_AXI_AWADDR), 
-      .S_AXI_AWVALID(S2_AXI_AWVALID),
-      .S_AXI_WDATA(S2_AXI_WDATA),  
-      .S_AXI_WSTRB(S2_AXI_WSTRB),  
-      .S_AXI_WVALID(S2_AXI_WVALID), 
-      .S_AXI_BREADY(S2_AXI_BREADY), 
-      .S_AXI_ARADDR(S2_AXI_ARADDR), 
-      .S_AXI_ARVALID(S2_AXI_ARVALID),
-      .S_AXI_RREADY(S2_AXI_RREADY), 
-      .S_AXI_ARREADY(S2_AXI_ARREADY),
-      .S_AXI_RDATA(S2_AXI_RDATA),  
-      .S_AXI_RRESP(S2_AXI_RRESP),  
-      .S_AXI_RVALID(S2_AXI_RVALID), 
-      .S_AXI_WREADY(S2_AXI_WREADY), 
-      .S_AXI_BRESP(S2_AXI_BRESP),  
-      .S_AXI_BVALID(S2_AXI_BVALID), 
-      .S_AXI_AWREADY(S2_AXI_AWREADY),
-      .S_AXI_ACLK (axi_aclk), 
-      .S_AXI_ARESETN(axi_resetn)
-
-    );    */  
-    
+       
     
 endmodule
 
