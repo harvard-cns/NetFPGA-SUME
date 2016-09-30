@@ -36,14 +36,14 @@ set DEF_LIST {
 	{MICROBLAZE_DLMB_BRAM 0 0 ""} \
 	{MICROBLAZE_ILMB_BRAM 0 0 ""} \
 	{MICROBLAZE_AXI_INTC 0 0 ""} \
-	{INPUT_ARBITER 0 1 input_arbiter_v1_0_0/data/input_arbiter_regs_defines.txt} \
-	{OUTPUT_QUEUES 0 1 output_queues_v1_0_0/data/output_queues_regs_defines.txt} \
-	{OUTPUT_PORT_LOOKUP 0 1 emu_output_port_lookup_v1_0_0/data/output_port_lookup_regs_defines.txt} \
-	{NF_10G_INTERFACE0 0 1 nf_10ge_interface_shared_v1_0_0/data/nf_10g_interface_shared_regs_defines.txt} \
-	{NF_10G_INTERFACE1 1 1 nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
-	{NF_10G_INTERFACE2 2 1 nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
-	{NF_10G_INTERFACE3 3 1 nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
-	{NF_RIFFA_DMA 0 1 nf_riffa_dma_v1_0_0/data/nf_riffa_dma_regs_defines.txt} \
+	{INPUT_ARBITER 0 1 std/cores/input_arbiter_v1_0_0/data/input_arbiter_regs_defines.txt} \
+	{OUTPUT_QUEUES 0 1 std/cores/output_queues_v1_0_0/data/output_queues_regs_defines.txt} \
+	{OUTPUT_PORT_LOOKUP 0 1 contrib/cores/emu_output_port_lookup_v1_0_0/data/emu_output_port_lookup_regs_defines.txt} \
+	{NF_10G_INTERFACE0 0 1 std/cores/nf_10ge_interface_shared_v1_0_0/data/nf_10g_interface_shared_regs_defines.txt} \
+	{NF_10G_INTERFACE1 1 1 std/cores/nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
+	{NF_10G_INTERFACE2 2 1 std/cores/nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
+	{NF_10G_INTERFACE3 3 1 std/cores/nf_10ge_interface_v1_0_0/data/nf_10g_interface_regs_defines.txt} \
+	{NF_RIFFA_DMA 0 1 std/cores/nf_riffa_dma_v1_0_0/data/nf_riffa_dma_regs_defines.txt} \
 
 }
 
@@ -113,7 +113,7 @@ set h_file [open $target_file "a"]
 
 #First, read the memory map information from the reference_project defines file
 source $::env(NF_DESIGN_DIR)/hw/tcl/$::env(NF_PROJECT_NAME)_defines.tcl
-set public_repo_dir $::env(SUME_FOLDER)/lib/hw/
+set public_repo_dir $::env(SUME_FOLDER)/lib/hw
 
 
 set baseaddr [set $prefix\_BASEADDR]
@@ -131,7 +131,7 @@ puts $h_file ""
 
 #Second, read the registers information from the library defines file
 if $has_registers {
-	set lib_path "$public_repo_dir/std/cores/$lib_name"
+	set lib_path "$public_repo_dir/$lib_name"
 	set regs_h_define_file $lib_path
 	set regs_h_define_file_read [open $regs_h_define_file r]
 	set regs_h_define_file_data [read $regs_h_define_file_read]

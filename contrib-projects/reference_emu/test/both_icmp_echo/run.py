@@ -39,7 +39,7 @@ from NFTest import *
 import sys
 import os
 from scapy.layers.all import Ether, IP, TCP
-from reg_defines_reference_nic import *
+from reg_defines_reference_emu import *
 from memlib import * 
 from memcached_pcapgen import * 
 

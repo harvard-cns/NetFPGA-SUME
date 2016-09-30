@@ -240,27 +240,27 @@ module emu_output_port_lookup
 
 	// BRAM-based CAM
 	// 1 cycle read latency, 2 cycles write latency, width=64b, depth=256entries
-	cam 
-	#(
-		.C_TCAM_ADDR_WIDTH	(8), 
-		.C_TCAM_DATA_WIDTH	(64),
-		.C_TCAM_ADDR_TYPE	(0),
-		.C_TCAM_MATCH_ADDR_WIDTH(8)
-	)
-	mac_cam
-	(  
-		(* box_type = "user_black_box" *)
-		// Outputs
-		.BUSY                             (cam_busy),
-		.MATCH                            (cam_match),
-		.MATCH_ADDR                       (cam_match_addr[7:0]),
-		// Inputs
-		.CLK                              (axis_aclk),
-		.CMP_DIN                          (cam_cmp_din[63:0]),
-		.DIN                              (cam_din[63:0]),
-		.WE                               (cam_we),
-		.ADDR_WR                          (cam_wr_addr[7:0])
-	);
+//	cam 
+//	#(
+//		.C_TCAM_ADDR_WIDTH	(8), 
+//		.C_TCAM_DATA_WIDTH	(64),
+//		.C_TCAM_ADDR_TYPE	(0),
+//		.C_TCAM_MATCH_ADDR_WIDTH(8)
+//	)
+//	mac_cam
+//	(  
+//		(* box_type = "user_black_box" *)
+//		// Outputs
+//		.BUSY                             (cam_busy),
+//		.MATCH                            (cam_match),
+//		.MATCH_ADDR                       (cam_match_addr[7:0]),
+//		// Inputs
+//		.CLK                              (axis_aclk),
+//		.CMP_DIN                          (cam_cmp_din[63:0]),
+//		.DIN                              (cam_din[63:0]),
+//		.WE                               (cam_we),
+//		.ADDR_WR                          (cam_wr_addr[7:0])
+//	);
 
 	nf_axis_converter
 	#(

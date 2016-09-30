@@ -122,7 +122,8 @@ identifier:
 
 sim: simclean identifier
 	cp -f $(NF_DESIGN_DIR)/test/reg_defines_reference_emu.py $(NF_DESIGN_DIR)/test/${TESTNAME}/reg_defines_reference_emu.py
-	vivado -mode batch -source ../../../projects/${PROJ}/hw/tcl/reference_emu_sim_bd.tcl -tclargs ${TESTNAME}
+#	vivado -mode batch -source ../../../projects/${PROJ}/hw/tcl/reference_emu_sim_bd.tcl -tclargs ${TESTNAME}
+	vivado -mode batch -source $(NF_DESIGN_DIR)/hw/tcl/${PROJ}_sim_bd.tcl -tclargs ${TESTNAME}
 	$(SUME_FOLDER)/tools/scripts/nf_sim_reconcile_axi_logs.py
 	$(SUME_FOLDER)/tools/scripts/nf_sim_registers_axi_logs.py
  
@@ -136,7 +137,8 @@ reg:
 	
 simgui: simclean identifier
 	cp -f $(NF_DESIGN_DIR)/test/reg_defines_reference_emu.py $(NF_DESIGN_DIR)/test/${TESTNAME}/reg_defines_reference_emu.py
-	vivado -mode gui -source ../../../projects/${PROJ}/hw/tcl/reference_emu_sim_bd.tcl -tclargs ${TESTNAME}
+#	vivado -mode gui -source ../../../projects/${PROJ}/hw/tcl/reference_emu_sim_bd.tcl -tclargs ${TESTNAME}
+	vivado -mode batch -source $(NF_DESIGN_DIR)/hw/tcl/${PROJ}_sim_bd.tcl -tclargs ${TESTNAME}
 	$(SUME_FOLDER)/tools/scripts/nf_sim_reconcile_axi_logs.py
 	$(SUME_FOLDER)/tools/scripts/nf_sim_registers_axi_logs.py
 
