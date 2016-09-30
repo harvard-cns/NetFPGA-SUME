@@ -129,8 +129,8 @@ set_property value_format {bitstring} [ipx::get_user_parameter C_BASEADDR [ipx::
 ipx::add_subcore NetFPGA:NetFPGA:fallthrough_small_fifo:1.00 [ipx::get_file_groups xilinx_verilogsynthesis -of_objects [ipx::current_core]]
 ipx::add_subcore NetFPGA:NetFPGA:fallthrough_small_fifo:1.00 [ipx::get_file_groups xilinx_verilogbehavioralsimulation -of_objects [ipx::current_core]]
 
-ipx::add_subcore xilinx:xilinx:cam:1.00 [ipx::get_file_groups xilinx_verilogsynthesis -of_objects [ipx::current_core]]
-ipx::add_subcore xilinx:xilinx:cam:1.00 [ipx::get_file_groups xilinx_verilogbehavioralsimulation -of_objects [ipx::current_core]]
+#ipx::add_subcore xilinx:xilinx:cam:1.00 [ipx::get_file_groups xilinx_verilogsynthesis -of_objects [ipx::current_core]]
+#ipx::add_subcore xilinx:xilinx:cam:1.00 [ipx::get_file_groups xilinx_verilogbehavioralsimulation -of_objects [ipx::current_core]]
 
 ipx::add_subcore NetFPGA:NetFPGA:nf_axis_converter:1.00 [ipx::get_file_groups xilinx_verilogsynthesis -of_objects [ipx::current_core]]
 ipx::add_subcore NetFPGA:NetFPGA:nf_axis_converter:1.00 [ipx::get_file_groups xilinx_verilogbehavioralsimulation -of_objects [ipx::current_core]]
