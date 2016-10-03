@@ -1,4 +1,4 @@
-#
+
 # Copyright (c) 2015 University of Cambridge
 # All rights reserved.
 #
@@ -27,10 +27,8 @@
 # @NETFPGA_LICENSE_HEADER_END@
 #
 
-Delay_mb bitfile is available for a direct download from the University of Cambridge servers:
+Reference NIC NFMAC10G bitfile is available for a direct download from the University of Cambridge servers:
 
-1. Delay_mb
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.4.0/contrib-projects/delay_mb.bit
-md5 checksum: 58c70fe5fad55ef90808fe89b17438e4
-
-
+1. reference_nic_nfmac10g
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.4.0/contrib-projects/reference_nic_nfmac10g.bit
+md5 checksum: 041cd884221a943d5c7596b28697b547
