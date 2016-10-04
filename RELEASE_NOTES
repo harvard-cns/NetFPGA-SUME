@@ -27,38 +27,25 @@
 #
 # @NETFPGA_LICENSE_HEADER_END@
 #
-GIT VERSION 1.3.0
+GIT VERSION 1.4.0
 
-Before using this code, please check the release notes for 1.3.0 below
+Before using this code, please check the release notes for 1.4.0rc below
 
 This release contains:
 
-1. Projects
-   - Reference router
 
-2. Contributed projects
-   - BlueSwitch
+1. Contributed projects
+   - reference_nic_nfmac10g	: Implementation of the reference_nic based on the open-source 10GbE MAC
+   - delay_mb			: A latency control gadget that provides latency variation and rate control
+   - reference_emu		: Includes 3 designs written in C# and translated to Verilog (emu_icmp_echo, emu_memcached_binary, emu_memcached_ascii)
 
-3. Cores
-   - router_output_port_lookup_v1_0_0  :  Implmentation of IPv4 reference router 
-   
-4. Contributed cores
-   - nf_endianess_manager_v1_0_0 :  Data conversion between Little <-> Big endianess
-   - nf_sume_blueswitch_v1_0_0   :  Switch implementing multi-table, compliant with OpenFlow protocol version 1.1 or later
-   - nf_sume_crossbar_v1_0_0     :  Part of the BlueSwitch project
+2. Contributed Cores
+   - nfmac_10ge_interface_shared_v1_0_0	: Open-source version of the Xilinx ten_gig_eth_mac
+   - nfmac_10ge_interface_v1_0_0	: Open-source version of the Xilinx ten_gig_eth_mac
+   - delay_v1_0_0			: FIFO-based module that control latency based on timestamps
+   - rate_limiter_v1_0_0		: FIFO-based module for pacing of data out of the FIFO
+   - emu_output_port_lookup_v1_0_0	: Output Port Lookup module that supports the reference_emu project
 
-5. Tools
-   - Registers generation infrastructure: Updated version_2, support of indirect register access
-   
-6. Patch
-   - switch_output_port_lookup_v1_0_1	:  Fix a typo in cam instantiation
-					   Update the implemention run, to more aggressive timing closure mode
-					   Add new CAM parameters (ADDR_TYPE, MATCH_ADDR_WIDTH)
-   - xparam2regdefines.py     		:  Fix bug which produced multiple hashes
-   
-7. Xilinx cores
-   - cam_v1_1_0/tcam_v1_1_0   :  Add new CAM parameters in the wrappers to support the ADDR_TYPE and MATCH_ADDR_WIDTH
-
-8. For known issues please visit the following link:    https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
+3. For known issues please visit the following link:    https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
    The open issues can also be seen on:                 https://github.com/NetFPGA/NetFPGA-SUME-live/issues
    The procedure to open new issue tickets:             https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Before-opening-issues

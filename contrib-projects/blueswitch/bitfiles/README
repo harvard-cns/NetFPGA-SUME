@@ -27,10 +27,9 @@
 # @NETFPGA_LICENSE_HEADER_END@
 #
 
-Delay_mb bitfile is available for a direct download from the University of Cambridge servers:
+Blueswitch bitfile is available for a direct download from the University of Cambridge servers:
 
-1. Delay_mb
-url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.4.0/contrib-projects/delay_mb.bit
-md5 checksum: 58c70fe5fad55ef90808fe89b17438e4
-
+1. Blueswitch
+url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.4.0/contrib-projects/blueswitch.bit
+md5 checksum: f64b6d13a451052766d7e2030fb28de7
 
