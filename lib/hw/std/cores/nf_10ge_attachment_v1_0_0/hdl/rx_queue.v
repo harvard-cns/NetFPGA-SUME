@@ -1,5 +1,6 @@
 //
 // Copyright (c) 2015 James Hongyi Zeng, Yury Audzevich, Gianni Antichi, Neelakandan Manihatty Bojan
+// Copyright (c) 2016 Jong Hun Han
 // All rights reserved.
 // 
 // Description:
@@ -49,6 +50,7 @@ module rx_queue
 
    // MAC side input
    input                                clk156,
+   input                                areset_clk156,
    
    input [AXI_DATA_WIDTH-1:0]           i_tdata,
    input [AXI_DATA_WIDTH/8-1:0]         i_tkeep,
@@ -78,6 +80,7 @@ module rx_queue
    wire fifo_empty;
 
     wire info_fifo_empty;
+    wire info_fifo_full;
     reg  info_fifo_rd_en;
     reg  info_fifo_wr_en;
     wire rx_bad_frame_fifo;
@@ -136,7 +139,7 @@ module rx_queue
 	.INJECTDBITERR              (),
     .INJECTSBITERR              (),	
 
-	.RST                       (reset),
+	.RST                       (areset_clk156),
 	.RSTREG                    (), 
 	.REGCE                     () 	
    	);
@@ -151,9 +154,9 @@ module rx_queue
 		.rd_en			(info_fifo_rd_en),
 		.rd_clk			(clk),
 		
-		.full 			(),
+		.full 			(info_fifo_full),
 		.empty 			(info_fifo_empty),
- 		.rst			(reset)
+ 		.rst			(areset_clk156)
 	);
      
     ///////////////////////////////////////////////
@@ -162,7 +165,7 @@ module rx_queue
      
     // fifo feeding FSM comb
     always @ (*) begin
-             state_next       = state;
+             state_next       = IDLE;
              tdata_rx_fifo    = i_tdata;
              tkeep_rx_fifo    = i_tkeep;
              fifo_wr_en       = 1'b0;
@@ -172,8 +175,9 @@ module rx_queue
              case(state)
                  IDLE: begin
                      if(i_tvalid && (i_tkeep == 8'hFF)) begin
-                         info_fifo_wr_en = 1'b1;
-                         if(~fifo_almost_full) begin
+                         //info_fifo_wr_en = 1'b1;
+                         if(~fifo_almost_full & ~info_fifo_full) begin
+                             info_fifo_wr_en = 1'b1;
                              fifo_wr_en = 1'b1;
                              state_next = WAIT_FOR_EOP;
                          end
@@ -185,6 +189,7 @@ module rx_queue
                  end
     
                  WAIT_FOR_EOP: begin
+                     state_next = WAIT_FOR_EOP;
                      if (i_tvalid) begin
                         fifo_wr_en = 1'b1;
                         if(i_tlast)
@@ -200,6 +205,7 @@ module rx_queue
                  end  
     
                  DROP: begin
+                     state_next = DROP;
                      if(i_tvalid && i_tlast) begin
                          state_next = IDLE;
                      end
@@ -209,7 +215,7 @@ module rx_queue
      
       // fifo feeding FSM seq
       always @(posedge clk156) begin
-              if(reset) begin
+              if(areset_clk156) begin
                   state         <= IDLE;
               end
               else begin
@@ -231,7 +237,7 @@ module rx_queue
      // fifo draining FSM 
      always @(*) begin
          info_fifo_rd_en = 0;
-         err_state_next = err_state;
+         err_state_next = ERR_BUBBLE;
          err_tvalid = 0;
 
          rx_fifo_rd_en = 0;
@@ -240,6 +246,7 @@ module rx_queue
         
          case(err_state)
              ERR_IDLE: begin
+               err_state_next = ERR_IDLE;
                  rx_fifo_rd_en = (~fifo_empty & o_tready);
                  o_tvalid = (~fifo_empty);                 
                                
@@ -250,6 +257,7 @@ module rx_queue
                  end
              end
              ERR_WAIT: begin
+               err_state_next = ERR_WAIT;
                  if(~info_fifo_empty) begin
                  	o_tlast = 1;
                  	o_tvalid = 1;
@@ -262,6 +270,7 @@ module rx_queue
                  end
              end
              ERR_BUBBLE: begin
+               err_state_next =ERR_BUBBLE;
                  if(~fifo_empty) begin // Head of the packet
                      rx_fifo_rd_en = 1;
                      err_state_next = ERR_IDLE;

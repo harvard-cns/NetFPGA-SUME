@@ -1,5 +1,6 @@
 //
 // Copyright (c) 2015 James Hongyi Zeng, Yury Audzevich
+// Copyright (c) 2016 Jong Hun Han
 // All rights reserved.
 // 
 // Description:
@@ -58,6 +59,7 @@ module tx_queue
        
      // MAC side
     input                               clk156,
+   input                                areset_clk156,
     
     // AXI side output
     output [AXI_DATA_WIDTH-1:0]         o_tdata,
@@ -70,7 +72,6 @@ module tx_queue
  
     localparam IDLE         = 2'd0;
     localparam SEND_PKT     = 2'd1;
-    localparam IFG          = 2'd2;
  
     localparam METADATA     = 1'b0;
     localparam EOP          = 1'b1;
@@ -81,7 +82,7 @@ module tx_queue
     wire                                tlast_axi_i;
     wire                                tlast_axi_o;
  
-    wire                                fifo_almost_full;
+    wire                                fifo_almost_full, info_fifo_full;
     wire                                fifo_empty, info_fifo_empty;
     reg                                 fifo_rd_en, info_fifo_rd_en;
     reg                                 info_fifo_wr_en;
@@ -96,8 +97,8 @@ module tx_queue
 
     ////////////////////////////////////////////////
     ////////////////////////////////////////////////
-    assign fifo_wr_en  = (reset) ? 1'b0 : (i_tvalid & i_tready) ? 1'b1 : 1'b0;    
-    assign i_tready    = ~fifo_almost_full;
+    assign fifo_wr_en  = (i_tvalid & i_tready);    
+    assign i_tready    = ~fifo_almost_full & ~info_fifo_full;
     assign tlast_axi_i = i_tlast;
 
       		 
@@ -143,7 +144,7 @@ module tx_queue
         .INJECTDBITERR              (),
         .INJECTSBITERR              (),    
       
-        .RST                        (reset),
+        .RST                        (areset_clk156),
         .RSTREG                     (), 
         .REGCE                      ()     
       );
@@ -157,9 +158,9 @@ module tx_queue
 		.rd_en			(info_fifo_rd_en					),
 		.rd_clk			(clk156							),
 		
-		.full 			(							),
+		.full 			(info_fifo_full							),
 		.empty 			(info_fifo_empty					),
- 		.rst			(reset							)
+ 		.rst			(areset_clk156							)
 	);	
 	 
 
@@ -198,7 +199,7 @@ module tx_queue
       // Sideband INFO 
       // pkt enq FSM comb
       always @(*) begin 
-          state1_next             = state1;
+          state1_next             = METADATA;
               
           tx_pkts_enqueued_signal = 0;
           tx_bytes_enqueued       = 0;
@@ -213,6 +214,7 @@ module tx_queue
               end
        
               EOP: begin
+                  state1_next = EOP;
                   if(i_tvalid & i_tlast & i_tready) begin
                       state1_next = METADATA;
                   end
@@ -231,9 +233,11 @@ module tx_queue
       end
            
       // write en on pkt
-      always @(posedge clk) begin    
+      always @(posedge clk)
+         if (reset)
+            info_fifo_wr_en   <= 0;
+         else
             info_fifo_wr_en <= i_tlast & i_tvalid & i_tready;
-      end   
         
  
       //////////////////////////////////////////////////////////
@@ -242,8 +246,9 @@ module tx_queue
       
       // FIFO draining FSM comb  
       assign tx_dequeued_pkt = tx_dequeued_pkt_next; 
+
       always @(*) begin
-          state_next            = state;
+          state_next            = IDLE;
           
           // axi
           o_tkeep               = tkeep_decoded_o;
@@ -262,7 +267,7 @@ module tx_queue
           case(state)
               IDLE: begin
                   o_tkeep = 8'b0;
-                  if( ~info_fifo_empty) begin
+                  if( ~info_fifo_empty & ~fifo_empty) begin
                       // pkt is stored already
                       info_fifo_rd_en = 1'b1;
                       be              = 'b0;                      
@@ -274,6 +279,7 @@ module tx_queue
                 // very important: 
                 // tvalid to go first: pg157, v3.0, pp. 109.
                 o_tvalid = 1'b1;
+                state_next  = SEND_PKT;
                 if (o_tready & ~fifo_empty) begin                
                     fifo_rd_en            = 1'b1;
                   
@@ -287,20 +293,11 @@ module tx_queue
                     end               
                 end                 
               end
- 
-              IFG: begin
-                  state_next = IDLE;
-                  o_tkeep    = 8'b0;
-              end
-              
-              default : begin
-                  state_next = IDLE;
-              end
           endcase
       end
  
       always @(posedge clk156) begin
-          if(reset) state <= IDLE;
+          if(areset_clk156) state <= IDLE;
           else      state <= state_next;         
       end 
  endmodule
