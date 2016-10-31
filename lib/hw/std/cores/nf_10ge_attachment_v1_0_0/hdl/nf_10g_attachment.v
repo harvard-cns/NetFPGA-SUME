@@ -1,5 +1,6 @@
 //
 // Copyright (c) 2015 James Hongyi Zeng, Yury Audzevich
+// Copyright (c) 2016 Jong Hun Han
 // All rights reserved.
 // 
 // Description:
@@ -178,7 +179,8 @@ wire                                           s_axis_fifo_tlast;
      .AXI_DATA_WIDTH                      (C_M_AXIS_DATA_WIDTH_INTERNAL)
     ) rx_fifo_intf (
     // MAC input 64b@clk156
-    .clk156                               (clk156),       
+    .clk156                               (clk156),
+    .areset_clk156                        (areset_clk156),
        
     .i_tdata                              (m_axis_mac_tdata),
     .i_tkeep                              (m_axis_mac_tkeep),
@@ -299,6 +301,7 @@ wire                                           s_axis_fifo_tlast;
       
       // AXIS MAC output 64b @156MHz      
      .clk156                             (clk156),
+    .areset_clk156                        (areset_clk156),
      
      .o_tdata                            (s_axis_mac_tdata),
      .o_tkeep                            (s_axis_mac_tkeep),
