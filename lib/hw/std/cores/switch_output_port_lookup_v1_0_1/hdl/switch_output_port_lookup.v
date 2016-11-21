@@ -66,11 +66,11 @@ module switch_output_port_lookup
  // AXI Registers Data Width
     parameter C_S_AXI_DATA_WIDTH    = 32,          
     parameter C_S_AXI_ADDR_WIDTH    = 12,          
-    parameter C_USE_WSTRB           = 0,	   
+    parameter C_USE_WSTRB           = 0,
     parameter C_DPHASE_TIMEOUT      = 0,               
-    parameter C_NUM_ADDRESS_RANGES = 1,
+    parameter C_NUM_ADDRESS_RANGES  = 1,
     parameter  C_TOTAL_NUM_CE       = 1,
-    parameter  C_S_AXI_MIN_SIZE    = 32'h0000_FFFF,
+    parameter  C_S_AXI_MIN_SIZE     = 32'h0000_FFFF,
     parameter [0:8*C_NUM_ADDRESS_RANGES-1] C_ARD_NUM_CE_ARRAY  = 
                                                 {
                                                  C_NUM_ADDRESS_RANGES{8'd1}
@@ -187,6 +187,10 @@ module switch_output_port_lookup
    wire reset_registers;
    wire reset_tables;
    
+   reg cam_reset;
+
+   always @(posedge axis_aclk) cam_reset <= #1 ~axis_resetn | reset_tables;
+
    //-------------------- Modules and Logic ---------------------------
    
    /* The size of this fifo has to be large enough to fit the previous modules' headers
@@ -214,14 +218,14 @@ module switch_output_port_lookup
          (.tdata    (s_axis_tdata),
           .tuser    (s_axis_tuser),
           .valid    (s_axis_tvalid & s_axis_tready),
-	      .tlast    (s_axis_tlast),
-          
-		  .dst_mac  (dst_mac),
+          .tlast    (s_axis_tlast),
+          .dst_mac  (dst_mac),
           .src_mac  (src_mac),
           .eth_done (eth_done),
           .src_port (src_port),
           .reset    (~axis_resetn),
           .clk      (axis_aclk));
+
 
    mac_cam_lut
      #(.NUM_OUTPUT_QUEUES(NUM_OUTPUT_QUEUES),
@@ -241,11 +245,11 @@ module switch_output_port_lookup
 
       // --- Misc
       .clk          (axis_aclk),
-      .reset        (~axis_resetn | reset_tables));
+      .reset        (cam_reset));
 
    fallthrough_small_fifo #(.WIDTH(NUM_OUTPUT_QUEUES), .MAX_DEPTH_BITS(2))
       dst_port_fifo
-        (.din (dst_ports),     // Data in
+        (.din (dst_ports),		// Data in
          .wr_en (lookup_done),             // Write enable
          .rd_en (dst_port_rd),       // Read the next word
          .dout (dst_ports_latched),
