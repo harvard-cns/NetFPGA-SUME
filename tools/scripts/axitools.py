@@ -235,6 +235,6 @@ def axis_load( f, period ):
                 pkt_data = []
                 tuser    = []
                 if len(pkts[-1]) != pkts[-1].tuser_len:
-                    print '%s: %d: #%d: warning: meta length (%d) disagrees with actual length (%d)' % (f.name, lno, len(pkts), meta_len, len(pkts[-1]))
+                    print '*** warning: meta length (%d) disagrees with actual length (%d) -- %s, line: %d' % ( pkts[-1].tuser_len , len(pkts[-1]), f.name, lno)
             time += period
     return pkts
