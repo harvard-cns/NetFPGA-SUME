@@ -27,24 +27,21 @@
 #
 # @NETFPGA_LICENSE_HEADER_END@
 #
-GIT VERSION 1.4.0
+GIT VERSION 1.5.0
 
-Before using this code, please check the release notes for 1.4.0 below
+Before using this code, please check the release notes for 1.5.0rc below
 
 This release contains:
 
 
-1. Contributed projects
-   - reference_nic_nfmac10g	: Implementation of the reference_nic based on the open-source 10GbE MAC
-   - delay_mb			: A latency control gadget that provides latency variation and rate control
-   - reference_emu		: Includes 3 designs written in C# and translated to Verilog (emu_icmp_echo, emu_memcached_binary, emu_memcached_ascii)
+1. Update
+   - nf_10ge_attachment_v1_0_0	:  Fix the state machine conditions in tx and rx queue modules to revolve the interface stall issues
+				   Fix the reset signal connection in tx and rx queue modules
 
-2. Contributed Cores
-   - nfmac_10ge_interface_shared_v1_0_0	: Open-source version of the Xilinx ten_gig_eth_mac
-   - nfmac_10ge_interface_v1_0_0	: Open-source version of the Xilinx ten_gig_eth_mac
-   - delay_v1_0_0			: FIFO-based module that control latency based on timestamps
-   - rate_limiter_v1_0_0		: FIFO-based module for pacing of data out of the FIFO
-   - emu_output_port_lookup_v1_0_0	: Output Port Lookup module that supports the reference_emu project
+2. Bug Fix
+   - reference_switch_lite	: Fix the reset signal which caused negative slack in the reference_switch_lite bitfile
+   - axitools.py		: Fix a typo, an undefined variable was crashing the script 
+
 
 3. For known issues please visit the following link:    https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Known-issues
    The open issues can also be seen on:                 https://github.com/NetFPGA/NetFPGA-SUME-live/issues
