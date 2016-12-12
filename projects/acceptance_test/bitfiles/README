@@ -43,7 +43,7 @@ md5 checksum: a8f2a67f4c7ab45a371d7cb252f1c76b
 
 4. GPIO test
 url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.5.0/acceptance_test/nf_sume_gpio.bit
-md5 checksum: ea7a72bc6833d4df6a009a5d585c8f00
+md5 checksum: 7b25e8d9b1feed66bc2a752305d88275
 
 5. QDRA test
 url: http://www.cl.cam.ac.uk/research/srg/netos/projects/netfpga/bitfiles/NetFPGA-SUME-live/1.5.0/acceptance_test/nf_sume_qdrA.bit
