@@ -39,11 +39,16 @@ the `.old` files under the above two dirs is the version with only INT mirroring
 
 ## Usage
 ### Compile
-I forget... 
 
-Maybe first `make` in the top dir, and `make` in the `lib/hw/xilinx/cores/cam_v1_1_0` and `lib/hw/xilinx/cores/tcam_v1_1_0`, then `make` in `projects/reference_switch`.
+You may follow SUME official guideline (https://github.com/NetFPGA /NetFPGA-SUME-public/wiki/Projects) to get started. 
 
-Everytime make a change to a modules under lib/hw/std/cores/, just do `make` under the dir of the module, and `make` in `projects/reference_switch`.
+Specifically, if you issue `make` in the top dir ([root@nf-test109 NetFPGA-SUME-live]# make), this will build all the basic modules. 
+
+Next, you will need to build other modules manually. First, issue `make` in the `lib/hw/xilinx/cores/cam_v1_1_0` and `lib/hw/xilinx/cores/tcam_v1_1_0` to build CAM and TCAM modules (please refer this: https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/NetFPGA-SUME-TCAM-IPs). Second, every time you add or modify the code of some modules (like we did in the step 3 above), you need to go to that specific module and rebuild it. For example, you will issue [root@nf-test109 NetFPGA-SUME-live\lib/hw/std/cores/fallthrough_small_fifo_twothresh_v1_0_0]# make).
+
+Last, issue `make` in `projects/reference_switch` to build the project, which will leverage all the necessary modules you just built.
+
+Again, everytime make a change to a modules under lib/hw/std/cores/, just do `make` under the dir of the module, and `make` in `projects/reference_switch`.
 
 ### Change dynamic threshold
 Change `BIT_SHIFT_ALPHA` in `lib/hw/std/cores/output_queues_v1_0_0/hdl/output_queues.v` to change the alpha of dynamic thresholding.
