@@ -37,11 +37,11 @@ the `.old` files under the above two dirs is the version with only INT mirroring
 
 ## Usage
 ## Compile
-	I forget... 
+I forget... 
 
-	Maybe first `make` in the top dir, and `make` in the `lib/hw/xilinx/cores/cam_v1_1_0` and `lib/hw/xilinx/cores/tcam_v1_1_0`, then `make` in `projects/reference_switch`.
+Maybe first `make` in the top dir, and `make` in the `lib/hw/xilinx/cores/cam_v1_1_0` and `lib/hw/xilinx/cores/tcam_v1_1_0`, then `make` in `projects/reference_switch`.
 
 ## Change dynamic threshold
-	Change `BIT_SHIFT_ALPHA` in `lib/hw/std/cores/output_queues_v1_0_0/hdl/output_queues.v` to change the alpha of dynamic thresholding.
+Change `BIT_SHIFT_ALPHA` in `lib/hw/std/cores/output_queues_v1_0_0/hdl/output_queues.v` to change the alpha of dynamic thresholding.
 
-	Stop dynamic threshold: swap the .old files with the corresponding .v files.
+Stop dynamic threshold: swap the .old files with the corresponding .v files.
