@@ -6,5 +6,6 @@ Each packet will be mirrored (only the header part), with some fields in the hea
 
 ## Modified code
 	lib/hw/std/cores/output_queues_v1_0_0/
-	----output_queues.tcl
-	----hdl/output_queues.v
+		output_queues.tcl
+		hdl/output_queues.v
+	lib/hw/std/cores/fallthrough_small_fifo_twothresh_v1_0_0 (new dir)
