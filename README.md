@@ -40,7 +40,7 @@ the `.old` files under the above two dirs is the version with only INT mirroring
 ## Usage
 ### Compile
 
-You may follow SUME official guideline (https://github.com/NetFPGA /NetFPGA-SUME-public/wiki/Projects) to get started. 
+You may follow SUME official guideline (https://github.com/NetFPGA/NetFPGA-SUME-public/wiki/Projects) to get started. 
 
 Specifically, if you issue `make` in the top dir ([root@nf-test109 NetFPGA-SUME-live]# make), this will build all the basic modules. 
 
