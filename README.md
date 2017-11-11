@@ -34,3 +34,14 @@ the `.old` files under the above two dirs is the version with only INT mirroring
 	The `fallthrough_small_fifo_twothresh` and `small_fifo_twothresh` expose the current queue length to `output_queue`. `output_queue` uses the queue lengths to calculate the dynamic threshold (`real_threshold` in output_queue.v), and assign the dynamic threshold back to `fallthrough_small_fifo_twothresh` and `small_fifo_twothresh` for them to decide whether the threshold is reached or not (`prog_full` (early drop) and `nearly_full` (normal drop)).
 
 	Note that the both `prog_full` and `nearly_full` are based on the dynamic threshold, not the configured `PROG_FULL_THRESHOLD` and `PROG_FULL_THRESHOLD_EARLY`. These two configurations are not used.
+
+## Usage
+## Compile
+	I forget... 
+
+	Maybe first `make` in the top dir, and `make` in the `lib/hw/xilinx/cores/cam_v1_1_0` and `lib/hw/xilinx/cores/tcam_v1_1_0`, then `make` in `projects/reference_switch`.
+
+## Change dynamic threshold
+	Change `BIT_SHIFT_ALPHA` in `lib/hw/std/cores/output_queues_v1_0_0/hdl/output_queues.v` to change the alpha of dynamic thresholding.
+
+	Stop dynamic threshold: swap the .old files with the corresponding .v files.
