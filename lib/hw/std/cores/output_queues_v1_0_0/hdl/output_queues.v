@@ -9,7 +9,7 @@
 // Stanford University and the University of Cambridge Computer Laboratory
 // under National Science Foundation under Grant No. CNS-0855268,
 // the University of Cambridge Computer Laboratory under EPSRC INTERNET Project EP/H040536/1 and
-// by the University of Cambridge Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249 ("MRC2"), 
+// by the University of Cambridge Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249 ("MRC2"),
 // as part of the DARPA MRC research programme.
 //
 // @NETFPGA_LICENSE_HEADER_START@
@@ -43,7 +43,7 @@
  *  Author:
  *        Adam Covington
  *        Modified by Noa Zilberman
- * 		
+ *
  *  Description:
  *        BRAM Output queues
  *        Outputs have a parameterizable width
@@ -62,8 +62,8 @@ module output_queues
     parameter NUM_QUEUES=5,
 
  // AXI Registers Data Width
-    parameter C_S_AXI_DATA_WIDTH    = 32,          
-    parameter C_S_AXI_ADDR_WIDTH    = 12,          
+    parameter C_S_AXI_DATA_WIDTH    = 32,
+    parameter C_S_AXI_ADDR_WIDTH    = 12,
     parameter C_BASEADDR            = 32'h00000000
 
 )
@@ -160,6 +160,7 @@ module output_queues
    function integer log2;
       input integer number;
       begin
+
          log2=0;
          while(2**log2<number) begin
             log2=log2+1;
@@ -170,12 +171,29 @@ module output_queues
    // ------------ Internal Params --------
 
    localparam NUM_QUEUES_WIDTH = log2(NUM_QUEUES);
+   localparam WORD_BYTE_SHIFT     = log2(C_M_AXIS_DATA_WIDTH/8);
 
-   localparam BUFFER_SIZE         = 4096; // Buffer size 4096B
-   localparam BUFFER_SIZE_WIDTH   = log2(BUFFER_SIZE/(C_M_AXIS_DATA_WIDTH/8));
+   //localparam BUFFER_SIZE         = 4096; // Buffer size 4096B
+   localparam BUFFER_SIZE         = 131072; // Buffer size 4096B
+  //  localparam BUFFER_SIZE         = 8192; // Buffer size 4096B
+   //localparam BUFFER_WORD_WIDTH   = log2(BUFFER_SIZE/(C_M_AXIS_DATA_WIDTH/8));
+
+   // for dynamic threshold (buffer shared across 3 ports).
+   localparam BIT_SHIFT_ALPHA     = 2; // alpha = 4 (<<2)
+   localparam SHARED_BUFFER_SIZE  = BUFFER_SIZE * 3;
+
+   // buffer size in words
+   localparam SHARED_BUFFER_WORD  = SHARED_BUFFER_SIZE >> WORD_BYTE_SHIFT;
+   localparam BUFFER_WORD_WIDTH   = log2(SHARED_BUFFER_WORD); 
+
+   localparam MIN_PACKET_SIZE = 64;
+   localparam META_BUFFER_WIDTH = log2(SHARED_BUFFER_SIZE/MIN_PACKET_SIZE);
 
    localparam MAX_PACKET_SIZE = 1600;
-   localparam BUFFER_THRESHOLD = (BUFFER_SIZE-MAX_PACKET_SIZE)/(C_M_AXIS_DATA_WIDTH/8);
+  //  localparam EARLY_DROP_SIZE = 16000;
+   localparam BUFFER_THRESHOLD = (BUFFER_SIZE - MAX_PACKET_SIZE)/(C_M_AXIS_DATA_WIDTH/8);
+   localparam BUFFER_EARLY_THRESHOLD = (BUFFER_SIZE - 3 * MAX_PACKET_SIZE)/(C_M_AXIS_DATA_WIDTH/8);
+  // localparam BUFFER_EARLY_THRESHOLD = (BUFFER_SIZE - EARLY_DROP_SIZE)/(C_M_AXIS_DATA_WIDTH/8);
 
    localparam NUM_STATES = 3;
    localparam IDLE = 0;
@@ -191,7 +209,12 @@ module output_queues
 
    reg [NUM_QUEUES-1:0]                nearly_full;
    wire [NUM_QUEUES-1:0]               nearly_full_fifo;
+   reg [NUM_QUEUES-1:0]                prog_full;
+   wire [NUM_QUEUES-1:0]               prog_full_fifo;
    wire [NUM_QUEUES-1:0]               empty;
+   wire [BUFFER_WORD_WIDTH:0]          depth[NUM_QUEUES-1:0];
+   reg [BUFFER_WORD_WIDTH - 1 + BIT_SHIFT_ALPHA:0]         dynamic_threshold; // the calculated dynamic_threshold. This has more bits than actually buffer size needs, so we use real_threshold (see below) to bound and pass to fifo module
+   wire [BUFFER_WORD_WIDTH-1:0]        real_threshold; // the real threshold, bounded by total buffer, passed to the fifo module
 
    reg [NUM_QUEUES-1:0]                metadata_nearly_full;
    wire [NUM_QUEUES-1:0]               metadata_nearly_full_fifo;
@@ -219,6 +242,11 @@ module output_queues
    reg [NUM_METADATA_STATES-1:0]       metadata_state_next[NUM_QUEUES-1:0];
 
    reg								   first_word, first_word_next;
+   reg [2:0]             truncate_len, truncate_len_next;
+   wire [C_S_AXIS_DATA_WIDTH - 1:0] s_axis_tdata_mirror;
+  //  reg [C_S_AXIS_DATA_WIDTH - 1:0] mirror_stat;
+  //  reg [C_S_AXIS_DATA_WIDTH - 1:0] mirror_stat_next;
+   reg								   mirror_second_word, mirror_second_word_next;
 
    reg [NUM_QUEUES-1:0] pkt_stored_next;
    reg [C_S_AXI_DATA_WIDTH-1:0] bytes_stored_next;
@@ -238,6 +266,7 @@ module output_queues
    wire                             pktout_reg_clear;
    reg      [`REG_DEBUG_BITS]    ip2cpu_debug_reg;
    wire     [`REG_DEBUG_BITS]    cpu2ip_debug_reg;
+
 
     reg      [`REG_PKTSTOREDPORT0_BITS]    pktstoredport0_reg;
     wire                             pktstoredport0_reg_clear;
@@ -310,6 +339,9 @@ module output_queues
     reg      [`REG_PKTINQUEUEPORT4_BITS]    pktinqueueport4_reg;
     wire                             pktinqueueport4_reg_clear;
 
+
+    // reg      [`REG_PKTINQUEUEPORT0_BITS]    pktinqueueport_reg;
+    reg      [7:0]    drop_indicate;
    wire clear_counters;
    wire reset_registers;
 
@@ -319,33 +351,60 @@ module output_queues
    generate
    genvar i;
    for(i=0; i<NUM_QUEUES; i=i+1) begin: output_queues
-      fallthrough_small_fifo
-        #( .WIDTH(C_M_AXIS_DATA_WIDTH+C_M_AXIS_DATA_WIDTH/8+1),
-           .MAX_DEPTH_BITS(BUFFER_SIZE_WIDTH),
-           .PROG_FULL_THRESHOLD(BUFFER_THRESHOLD))
-      output_fifo
-        (// Outputs
-         .dout                           ({fifo_out_tlast[i], fifo_out_tkeep[i], fifo_out_tdata[i]}),
-         .full                           (),
-         .nearly_full                    (),
-	 	 .prog_full                      (nearly_full_fifo[i]),
-         .empty                          (empty[i]),
-         // Inputs
-         .din                            ({s_axis_tlast, s_axis_tkeep, s_axis_tdata}),
-         .wr_en                          (wr_en[i]),
-         .rd_en                          (rd_en[i]),
-         .reset                          (~axis_resetn),
-         .clk                            (axis_aclk));
+      if(i == 0) begin
+        fallthrough_small_fifo_twothresh
+          #( .WIDTH(C_M_AXIS_DATA_WIDTH+C_M_AXIS_DATA_WIDTH/8+1),
+             .MAX_DEPTH_BITS(BUFFER_WORD_WIDTH),
+             .PROG_FULL_THRESHOLD(BUFFER_THRESHOLD),
+             .PROG_FULL_THRESHOLD_EARLY(BUFFER_EARLY_THRESHOLD))
+        output_fifo
+          (// Outputs
+           .dout                           ({fifo_out_tlast[i], fifo_out_tkeep[i], fifo_out_tdata[i]}),
+           .full                           (),
+           .nearly_full                    (nearly_full_fifo[i]),
+           .prog_full                      (prog_full_fifo[i]),
+           .empty                          (empty[i]),
+		   .depth                          (depth[i]),
+           // Inputs
+           .din                            ({s_axis_tlast, s_axis_tkeep, s_axis_tdata_mirror}),
+           .wr_en                          (wr_en[i]),
+		   .threshold                      (BUFFER_THRESHOLD),
+           .rd_en                          (rd_en[i]),
+           .reset                          (~axis_resetn),
+           .clk                            (axis_aclk));
+      end
+      else begin
+          fallthrough_small_fifo_twothresh
+            #( .WIDTH(C_M_AXIS_DATA_WIDTH+C_M_AXIS_DATA_WIDTH/8+1),
+               .MAX_DEPTH_BITS(BUFFER_WORD_WIDTH),
+               .PROG_FULL_THRESHOLD(BUFFER_THRESHOLD),
+               .PROG_FULL_THRESHOLD_EARLY(BUFFER_EARLY_THRESHOLD))
+          output_fifo
+            (// Outputs
+             .dout                           ({fifo_out_tlast[i], fifo_out_tkeep[i], fifo_out_tdata[i]}),
+             .full                           (),
+             .nearly_full                    (nearly_full_fifo[i]),
+    	 	     .prog_full                      (prog_full_fifo[i]),
+             .empty                          (empty[i]),
+			 .depth                          (depth[i]),
+             // Inputs
+             .din                            ({s_axis_tlast, s_axis_tkeep, s_axis_tdata}),
+             .wr_en                          (wr_en[i]),
+		     .threshold                      (real_threshold),
+             .rd_en                          (rd_en[i]),
+             .reset                          (~axis_resetn),
+             .clk                            (axis_aclk));
+      end
 
       fallthrough_small_fifo
         #( .WIDTH(C_M_AXIS_TUSER_WIDTH),
-           .MAX_DEPTH_BITS(2))
+           .MAX_DEPTH_BITS(META_BUFFER_WIDTH))
       metadata_fifo
         (// Outputs
          .dout                           (fifo_out_tuser[i]),
          .full                           (),
          .nearly_full                    (metadata_nearly_full_fifo[i]),
-	 	 .prog_full                      (),
+	 	     .prog_full                      (),
          .empty                          (metadata_empty[i]),
          // Inputs
          .din                            (s_axis_tuser),
@@ -355,19 +414,20 @@ module output_queues
          .clk                            (axis_aclk));
 
 
+
    always @(metadata_state[i], rd_en[i], fifo_out_tlast[i], fifo_out_tuser[i]) begin
-        metadata_rd_en[i] = 1'b0;
-        pkt_removed[i]= 1'b0;
-	bytes_removed[i]=32'b0;
-	metadata_state_next[i] = metadata_state[i];
-      	case(metadata_state[i])
+         metadata_rd_en[i] = 1'b0;
+         pkt_removed[i]= 1'b0;
+	       bytes_removed[i]=32'b0;
+	       metadata_state_next[i] = metadata_state[i];
+         case(metadata_state[i])
       		WAIT_HEADER: begin
-      			if(rd_en[i]) begin
-      				metadata_state_next[i] = WAIT_EOP;
-      				metadata_rd_en[i] = 1'b1;
-				pkt_removed[i]= 1'b1;
-				bytes_removed[i]=fifo_out_tuser[i][15:0];
-      			end
+      			 if(rd_en[i]) begin
+      				  metadata_state_next[i] = WAIT_EOP;
+      				  metadata_rd_en[i] = 1'b1;
+				        pkt_removed[i]= 1'b1;
+				        bytes_removed[i]=fifo_out_tuser[i][15:0];
+      			 end
       		end
       		WAIT_EOP: begin
       			if(rd_en[i] & fifo_out_tlast[i]) begin
@@ -386,7 +446,7 @@ module output_queues
       	end
       end
 
-   end 
+   end
    endgenerate
 
    // Per NetFPGA-10G AXI Spec
@@ -404,7 +464,10 @@ module output_queues
       metadata_wr_en = 0;
       s_axis_tready  = 0;
       first_word_next = first_word;
-     
+      mirror_second_word_next = mirror_second_word;
+      truncate_len_next = truncate_len;
+      // mirror_stat_next = mirror_stat;
+
       bytes_stored_next = 0;
       pkt_stored_next = 0;
       pkt_dropped_next = 0;
@@ -416,16 +479,27 @@ module output_queues
         IDLE: begin
            cur_queue_next = oq;
            if(s_axis_tvalid) begin
-              if(~|((nearly_full | metadata_nearly_full) & oq)) begin // All interesting oqs are NOT _nearly_ full (able to fit in the maximum pacekt).
-                  state_next = WR_PKT;
-                  first_word_next = 1'b1;
-		  pkt_stored_next = oq;
-		  bytes_stored_next = s_axis_tuser[15:0];
-              end
-              else begin
-              	  state_next = DROP;
-	          pkt_dropped_next = oq;
-		  bytes_dropped_next = s_axis_tuser[15:0];
+              truncate_len_next = 3'b111;
+              // mirror_stat_next = s_axis_tdata;
+              mirror_second_word_next = 1'b0;
+              // assign s_axis_tdata_mirror = s_axis_tdata;
+              // if((~|((nearly_full | metadata_nearly_full) & oq)) & (~((|(prog_full & oq)) & (|((1'b1 << 120) & s_axis_tdata))))) begin // All interesting oqs are NOT _nearly_ full (able to fit in the maximum pacekt).
+              if ((|((nearly_full | metadata_nearly_full) & oq))) begin // All interesting oqs are NOT _nearly_ full (able to fit in the maximum pacekt).
+                state_next = DROP;
+                pkt_dropped_next = oq;
+                bytes_dropped_next = s_axis_tuser[15:0];
+                drop_indicate = 8'h0a;
+              end else if  ((|(prog_full & oq)) & (|((1'b1 << 120) & s_axis_tdata))) begin
+                state_next = DROP;
+                pkt_dropped_next = oq;
+                bytes_dropped_next = s_axis_tuser[15:0];
+                drop_indicate = 8'h0c;
+              end else begin
+                state_next = WR_PKT;
+                first_word_next = 1'b1;
+	              pkt_stored_next = oq;
+	              bytes_stored_next = s_axis_tuser[15:0];
+                drop_indicate = 8'h11;
               end
            end
         end
@@ -435,21 +509,92 @@ module output_queues
            s_axis_tready = 1;
            if(s_axis_tvalid) begin
            		first_word_next = 1'b0;
-				wr_en = cur_queue;
-				if(first_word) begin
-					metadata_wr_en = cur_queue;
-				end
-				if(s_axis_tlast) begin
-					state_next = IDLE;
-				end
+              // truncate_len_next = (truncate_len_next >> 1);
+              if ((|truncate_len) | s_axis_tlast) begin
+                   wr_en = cur_queue | 1;
+                   if(truncate_len == 3'b011) begin
+                      mirror_second_word_next = 1'b1;
+                      // case (cur_queue)
+                      //   5'b00001: begin
+                      //     pktinqueueport_reg = pktinqueueport0_reg;
+                      //     // mirror_stat_next = s_axis_tdata & ({(208){1'b1}} << 48) |
+                      //     // (oq << 40) |
+                      //     // (pktinqueueport0_reg);
+                      //   end
+                      //   5'b00010: begin
+                      //     pktinqueueport_reg = pktinqueueport1_reg;
+                      //   end
+                      //   5'b00100: begin
+                      //     pktinqueueport_reg = pktinqueueport2_reg;
+                      //   end
+                      //   5'b01000: begin
+                      //     pktinqueueport_reg = pktinqueueport3_reg;
+                      //   end
+                      //   5'b10000: begin
+                      //     pktinqueueport_reg = pktinqueueport4_reg;
+                      //   end
+                      //   endcase
+                   end
+                   else begin
+                      mirror_second_word_next = 1'b0;
+                      // mirror_stat_next = s_axis_tdata;
+                   end
+              end
+              else begin
+				          wr_en = cur_queue;
+              end
+
+				      if(first_word) begin
+					         metadata_wr_en = cur_queue;
+				      end
+				      if(s_axis_tlast) begin
+					         state_next = IDLE;
+				      end
            end
         end // case: WR_PKT
 
         DROP: begin
            s_axis_tready = 1;
-           if(s_axis_tvalid & s_axis_tlast) begin
-           	  state_next = IDLE;
+           if(s_axis_tvalid) begin
+               if ((|truncate_len) | s_axis_tlast) begin
+                   wr_en = 5'b00001;
+                   if(truncate_len == 3'b011) begin
+                      mirror_second_word_next = 1'b1;
+                      // case (cur_queue)
+                      //   5'b00001: begin
+                      //     pktinqueueport_reg = pktinqueueport0_reg;
+                      //     // mirror_stat_next = s_axis_tdata & ({(208){1'b1}} << 48) |
+                      //     // (oq << 40) |
+                      //     // (pktinqueueport0_reg);
+                      //   end
+                      //   5'b00010: begin
+                      //     pktinqueueport_reg = pktinqueueport1_reg;
+                      //   end
+                      //   5'b00100: begin
+                      //     pktinqueueport_reg = pktinqueueport2_reg;
+                      //   end
+                      //   5'b01000: begin
+                      //     pktinqueueport_reg = pktinqueueport3_reg;
+                      //   end
+                      //   5'b10000: begin
+                      //     pktinqueueport_reg = pktinqueueport4_reg;
+                      //   end
+                      //   endcase
+                   end
+                   else begin
+                      mirror_second_word_next = 1'b0;
+                      // mirror_stat_next = s_axis_tdata;
+                   end
+               end
+
+               if(s_axis_tlast) begin
+ 					         state_next = IDLE;
+ 				      end
            end
+
+           //if(s_axis_tvalid & s_axis_tlast) begin
+           //	  state_next = IDLE;
+           //end
         end
 
       endcase // case(state)
@@ -462,8 +607,10 @@ module output_queues
          state <= IDLE;
          cur_queue <= 0;
          first_word <= 0;
+         truncate_len <= 0;
+         mirror_second_word <= 0;
 
- 	 bytes_stored <= 0;
+ 	       bytes_stored <= 0;
          pkt_stored <= 0;
          pkt_dropped <=0;
          bytes_dropped <=0;
@@ -472,17 +619,53 @@ module output_queues
          state <= state_next;
          cur_queue <= cur_queue_next;
          first_word <= first_word_next;
+         truncate_len <= (truncate_len_next >> 1);
+        //  mirror_stat <= mirror_stat_next;
+         mirror_second_word <= mirror_second_word_next;
 
-	 bytes_stored <= bytes_stored_next;
+	       bytes_stored <= bytes_stored_next;
          pkt_stored <= pkt_stored_next;
          pkt_dropped<= pkt_dropped_next;
          bytes_dropped<= bytes_dropped_next;
+
+
+        //  case (cur_queue)
+        //    5'b00001: begin
+        //      pktinqueueport_reg <= pktinqueueport0_reg;
+        //      // mirror_stat_next = s_axis_tdata & ({(208){1'b1}} << 48) |
+        //      // (oq << 40) |
+        //      // (pktinqueueport0_reg);
+        //    end
+        //    5'b00010: begin
+        //      pktinqueueport_reg <= pktinqueueport1_reg;
+        //    end
+        //    5'b00100: begin
+        //      pktinqueueport_reg <= pktinqueueport2_reg;
+        //    end
+        //    5'b01000: begin
+        //      pktinqueueport_reg <= pktinqueueport3_reg;
+        //    end
+        //    5'b10000: begin
+        //      pktinqueueport_reg <= pktinqueueport4_reg;
+        //    end
+        //    endcase
+
+
       end
 
       nearly_full <= nearly_full_fifo;
+	  dynamic_threshold <= (SHARED_BUFFER_WORD - depth[1] - depth[2] - depth[3]) << BIT_SHIFT_ALPHA;
       metadata_nearly_full <= metadata_nearly_full_fifo;
+      prog_full <= prog_full_fifo;
    end
 
+   assign real_threshold = (dynamic_threshold < SHARED_BUFFER_WORD ? dynamic_threshold[BUFFER_WORD_WIDTH-1:0] : SHARED_BUFFER_WORD);
+   assign s_axis_tdata_mirror = (mirror_second_word)? ((s_axis_tdata & ({(256){1'b1}} >> 112)) |
+                                      (pktinqueueport1_reg << 144)|
+                                      (pktinqueueport2_reg << 176)|
+                                      (pktinqueueport3_reg << 208)|
+                                      (cur_queue << 240) |
+                                      (drop_indicate << 248)):s_axis_tdata;
 
    assign m_axis_0_tdata	 = fifo_out_tdata[0];
    assign m_axis_0_tkeep	 = fifo_out_tkeep[0];
@@ -530,13 +713,13 @@ module output_queues
    assign bytes_removed_4          = bytes_removed[4];
 
 //Registers section
-output_queues_cpu_regs 
+output_queues_cpu_regs
  #(
      .C_BASE_ADDRESS        (C_BASEADDR),
      .C_S_AXI_DATA_WIDTH    (C_S_AXI_DATA_WIDTH),
      .C_S_AXI_ADDR_WIDTH    (C_S_AXI_ADDR_WIDTH)
  ) output_queues_cpu_regs_inst
- (   
+ (
    // General ports
     .clk                    (axis_aclk),
     .resetn                 (axis_resetn),
@@ -560,7 +743,7 @@ output_queues_cpu_regs
     .S_AXI_BRESP            (S_AXI_BRESP),
     .S_AXI_BVALID           (S_AXI_BVALID),
     .S_AXI_AWREADY          (S_AXI_AWREADY),
-   
+
    // Register ports
    .id_reg          (id_reg),
    .version_reg          (version_reg),
@@ -652,141 +835,137 @@ output_queues_cpu_regs
    assign clear_counters = reset_reg[0];
    assign reset_registers = reset_reg[4];
 
-////registers logic, current logic is just a placeholder for initial compil, required to be changed by the user
+
 always @(posedge axis_aclk)
 	if (~resetn_sync | reset_registers) begin
-		id_reg <= #1    `REG_ID_DEFAULT;
-		version_reg <= #1    `REG_VERSION_DEFAULT;
-		ip2cpu_flip_reg <= #1    `REG_FLIP_DEFAULT;
-		pktin_reg <= #1    `REG_PKTIN_DEFAULT;
-		pktout_reg <= #1    `REG_PKTOUT_DEFAULT;
-		ip2cpu_debug_reg <= #1    `REG_DEBUG_DEFAULT;
-		pktstoredport0_reg <= #1    `REG_PKTSTOREDPORT0_DEFAULT;
-		bytesstoredport0_reg <= #1    `REG_BYTESSTOREDPORT0_DEFAULT;
-		pktremovedport0_reg <= #1    `REG_PKTREMOVEDPORT0_DEFAULT;
-		bytesremovedport0_reg <= #1    `REG_BYTESREMOVEDPORT0_DEFAULT;
-		pktdroppedport0_reg <= #1    `REG_PKTDROPPEDPORT0_DEFAULT;
-		bytesdroppedport0_reg <= #1    `REG_BYTESDROPPEDPORT0_DEFAULT;
-		pktinqueueport0_reg <= #1    `REG_PKTINQUEUEPORT0_DEFAULT;
-		pktstoredport1_reg <= #1    `REG_PKTSTOREDPORT1_DEFAULT;
-		bytesstoredport1_reg <= #1    `REG_BYTESSTOREDPORT1_DEFAULT;
-		pktremovedport1_reg <= #1    `REG_PKTREMOVEDPORT1_DEFAULT;
-		bytesremovedport1_reg <= #1    `REG_BYTESREMOVEDPORT1_DEFAULT;
-		pktdroppedport1_reg <= #1    `REG_PKTDROPPEDPORT1_DEFAULT;
-		bytesdroppedport1_reg <= #1    `REG_BYTESDROPPEDPORT1_DEFAULT;
-		pktinqueueport1_reg <= #1    `REG_PKTINQUEUEPORT1_DEFAULT;
-		pktstoredport2_reg <= #1    `REG_PKTSTOREDPORT2_DEFAULT;
-		bytesstoredport2_reg <= #1    `REG_BYTESSTOREDPORT2_DEFAULT;
-		pktremovedport2_reg <= #1    `REG_PKTREMOVEDPORT2_DEFAULT;
-		bytesremovedport2_reg <= #1    `REG_BYTESREMOVEDPORT2_DEFAULT;
-		pktdroppedport2_reg <= #1    `REG_PKTDROPPEDPORT2_DEFAULT;
-		bytesdroppedport2_reg <= #1    `REG_BYTESDROPPEDPORT2_DEFAULT;
-		pktinqueueport2_reg <= #1    `REG_PKTINQUEUEPORT2_DEFAULT;
-		pktstoredport3_reg <= #1    `REG_PKTSTOREDPORT3_DEFAULT;
-		bytesstoredport3_reg <= #1    `REG_BYTESSTOREDPORT3_DEFAULT;
-		pktremovedport3_reg <= #1    `REG_PKTREMOVEDPORT3_DEFAULT;
-		bytesremovedport3_reg <= #1    `REG_BYTESREMOVEDPORT3_DEFAULT;
-		pktdroppedport3_reg <= #1    `REG_PKTDROPPEDPORT3_DEFAULT;
-		bytesdroppedport3_reg <= #1    `REG_BYTESDROPPEDPORT3_DEFAULT;
-		pktinqueueport3_reg <= #1    `REG_PKTINQUEUEPORT3_DEFAULT;
-		pktstoredport4_reg <= #1    `REG_PKTSTOREDPORT4_DEFAULT;
-		bytesstoredport4_reg <= #1    `REG_BYTESSTOREDPORT4_DEFAULT;
-		pktremovedport4_reg <= #1    `REG_PKTREMOVEDPORT4_DEFAULT;
-		bytesremovedport4_reg <= #1    `REG_BYTESREMOVEDPORT4_DEFAULT;
-		pktdroppedport4_reg <= #1    `REG_PKTDROPPEDPORT4_DEFAULT;
-		bytesdroppedport4_reg <= #1    `REG_BYTESDROPPEDPORT4_DEFAULT;
-		pktinqueueport4_reg <= #1    `REG_PKTINQUEUEPORT4_DEFAULT;
+		id_reg <=     `REG_ID_DEFAULT;
+		version_reg <=     `REG_VERSION_DEFAULT;
+		ip2cpu_flip_reg <=     `REG_FLIP_DEFAULT;
+		pktin_reg <=     `REG_PKTIN_DEFAULT;
+		pktout_reg <=     `REG_PKTOUT_DEFAULT;
+		ip2cpu_debug_reg <=     `REG_DEBUG_DEFAULT;
+		pktstoredport0_reg <=     `REG_PKTSTOREDPORT0_DEFAULT;
+		bytesstoredport0_reg <=     `REG_BYTESSTOREDPORT0_DEFAULT;
+		pktremovedport0_reg <=     `REG_PKTREMOVEDPORT0_DEFAULT;
+		bytesremovedport0_reg <=     `REG_BYTESREMOVEDPORT0_DEFAULT;
+		pktdroppedport0_reg <=     `REG_PKTDROPPEDPORT0_DEFAULT;
+		bytesdroppedport0_reg <=     `REG_BYTESDROPPEDPORT0_DEFAULT;
+		pktinqueueport0_reg <=     `REG_PKTINQUEUEPORT0_DEFAULT;
+		pktstoredport1_reg <=     `REG_PKTSTOREDPORT1_DEFAULT;
+		bytesstoredport1_reg <=     `REG_BYTESSTOREDPORT1_DEFAULT;
+		pktremovedport1_reg <=     `REG_PKTREMOVEDPORT1_DEFAULT;
+		bytesremovedport1_reg <=     `REG_BYTESREMOVEDPORT1_DEFAULT;
+		pktdroppedport1_reg <=     `REG_PKTDROPPEDPORT1_DEFAULT;
+		bytesdroppedport1_reg <=     `REG_BYTESDROPPEDPORT1_DEFAULT;
+		pktinqueueport1_reg <=     `REG_PKTINQUEUEPORT1_DEFAULT;
+		pktstoredport2_reg <=     `REG_PKTSTOREDPORT2_DEFAULT;
+		bytesstoredport2_reg <=     `REG_BYTESSTOREDPORT2_DEFAULT;
+		pktremovedport2_reg <=     `REG_PKTREMOVEDPORT2_DEFAULT;
+		bytesremovedport2_reg <=     `REG_BYTESREMOVEDPORT2_DEFAULT;
+		pktdroppedport2_reg <=     `REG_PKTDROPPEDPORT2_DEFAULT;
+		bytesdroppedport2_reg <=     `REG_BYTESDROPPEDPORT2_DEFAULT;
+		pktinqueueport2_reg <=     `REG_PKTINQUEUEPORT2_DEFAULT;
+		pktstoredport3_reg <=     `REG_PKTSTOREDPORT3_DEFAULT;
+		bytesstoredport3_reg <=     `REG_BYTESSTOREDPORT3_DEFAULT;
+		pktremovedport3_reg <=     `REG_PKTREMOVEDPORT3_DEFAULT;
+		bytesremovedport3_reg <=     `REG_BYTESREMOVEDPORT3_DEFAULT;
+		pktdroppedport3_reg <=     `REG_PKTDROPPEDPORT3_DEFAULT;
+		bytesdroppedport3_reg <=     `REG_BYTESDROPPEDPORT3_DEFAULT;
+		pktinqueueport3_reg <=     `REG_PKTINQUEUEPORT3_DEFAULT;
+		pktstoredport4_reg <=     `REG_PKTSTOREDPORT4_DEFAULT;
+		bytesstoredport4_reg <=     `REG_BYTESSTOREDPORT4_DEFAULT;
+		pktremovedport4_reg <=     `REG_PKTREMOVEDPORT4_DEFAULT;
+		bytesremovedport4_reg <=     `REG_BYTESREMOVEDPORT4_DEFAULT;
+		pktdroppedport4_reg <=     `REG_PKTDROPPEDPORT4_DEFAULT;
+		bytesdroppedport4_reg <=     `REG_BYTESDROPPEDPORT4_DEFAULT;
+		pktinqueueport4_reg <=     `REG_PKTINQUEUEPORT4_DEFAULT;
 	end
 	else begin
-		id_reg <= #1    `REG_ID_DEFAULT;
-		version_reg <= #1    `REG_VERSION_DEFAULT;
-		ip2cpu_flip_reg <= #1    ~cpu2ip_flip_reg;
-		pktin_reg[`REG_PKTIN_WIDTH -2: 0] <= #1  clear_counters | pktin_reg_clear ? 'h0  : pktin_reg[`REG_PKTIN_WIDTH-2:0] + (s_axis_tlast && s_axis_tvalid && s_axis_tready) ;
-                pktin_reg[`REG_PKTIN_WIDTH-1] <= #1 clear_counters | pktin_reg_clear ? 1'h0  : pktin_reg[`REG_PKTIN_WIDTH-2:0] + (s_axis_tlast && s_axis_tvalid && s_axis_tready) > {(`REG_PKTIN_WIDTH-1){1'b1}} ? 1'b1 : pktin_reg[`REG_PKTIN_WIDTH-1];
-                                                               
-		pktout_reg [`REG_PKTOUT_WIDTH-2:0]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_0_tlast && m_axis_0_tvalid && m_axis_0_tready) + (m_axis_1_tlast && m_axis_1_tvalid && m_axis_1_tready)+ (m_axis_2_tlast && m_axis_2_tvalid && m_axis_2_tready)+ (m_axis_3_tlast && m_axis_3_tvalid && m_axis_3_tready)+ (m_axis_4_tlast && m_axis_4_tvalid && m_axis_4_tready) ;
-                pktout_reg [`REG_PKTOUT_WIDTH-1]<= #1  clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_0_tlast && m_axis_0_tvalid && m_axis_0_tready) + (m_axis_1_tlast && m_axis_1_tvalid && m_axis_1_tready)+ (m_axis_2_tlast && m_axis_2_tvalid && m_axis_2_tready)+ (m_axis_3_tlast && m_axis_3_tvalid && m_axis_3_tready)+ (m_axis_4_tlast && m_axis_4_tvalid && m_axis_4_tready) > {(`REG_PKTOUT_WIDTH-1){1'b1}} ? 1'b1 : pktout_reg [`REG_PKTOUT_WIDTH-1];
-		ip2cpu_debug_reg <= #1    `REG_DEBUG_DEFAULT+cpu2ip_debug_reg;
+		id_reg <=     `REG_ID_DEFAULT;
+		version_reg <=     `REG_VERSION_DEFAULT;
+		ip2cpu_flip_reg <=     ~cpu2ip_flip_reg;
+		pktin_reg[`REG_PKTIN_WIDTH -2: 0] <=   clear_counters | pktin_reg_clear ? 'h0  : pktin_reg[`REG_PKTIN_WIDTH-2:0] + (s_axis_tlast && s_axis_tvalid && s_axis_tready) ;
+    pktin_reg[`REG_PKTIN_WIDTH-1] <=  clear_counters | pktin_reg_clear ? 1'h0  : pktin_reg[`REG_PKTIN_WIDTH-2:0] + (s_axis_tlast && s_axis_tvalid && s_axis_tready) > {(`REG_PKTIN_WIDTH-1){1'b1}} ? 1'b1 : pktin_reg[`REG_PKTIN_WIDTH-1];
+
+		pktout_reg [`REG_PKTOUT_WIDTH-2:0]<=   clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_0_tlast && m_axis_0_tvalid && m_axis_0_tready) + (m_axis_1_tlast && m_axis_1_tvalid && m_axis_1_tready)+ (m_axis_2_tlast && m_axis_2_tvalid && m_axis_2_tready)+ (m_axis_3_tlast && m_axis_3_tvalid && m_axis_3_tready)+ (m_axis_4_tlast && m_axis_4_tvalid && m_axis_4_tready) ;
+    pktout_reg [`REG_PKTOUT_WIDTH-1]<=   clear_counters | pktout_reg_clear ? 'h0  : pktout_reg [`REG_PKTOUT_WIDTH-2:0] + (m_axis_0_tlast && m_axis_0_tvalid && m_axis_0_tready) + (m_axis_1_tlast && m_axis_1_tvalid && m_axis_1_tready)+ (m_axis_2_tlast && m_axis_2_tvalid && m_axis_2_tready)+ (m_axis_3_tlast && m_axis_3_tvalid && m_axis_3_tready)+ (m_axis_4_tlast && m_axis_4_tvalid && m_axis_4_tready) > {(`REG_PKTOUT_WIDTH-1){1'b1}} ? 1'b1 : pktout_reg [`REG_PKTOUT_WIDTH-1];
+		ip2cpu_debug_reg <=     `REG_DEBUG_DEFAULT+cpu2ip_debug_reg;
 //Port 0 Counters
-		pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-2:0] <= #1  clear_counters | pktstoredport0_reg_clear ? 'h0  : pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-2:0] + pkt_stored[0];
-                pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-1] <= #1  clear_counters | pktstoredport0_reg_clear ? 'h0 : pktstoredport0_reg [`REG_PKTSTOREDPORT0_WIDTH-2:0] + pkt_stored[0]  > {(`REG_PKTSTOREDPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-1];
-		bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-2:0] <= #1  clear_counters | bytesstoredport0_reg_clear ? 'h0  : bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-2:0] + (pkt_stored[0] ? bytes_stored : 0);
-                bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-1] <= #1  clear_counters | bytesstoredport0_reg_clear ? 'h0 : bytesstoredport0_reg [`REG_BYTESSTOREDPORT0_WIDTH-2:0] + (pkt_stored[0] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT0_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-1];
-		pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-2:0] <= #1  clear_counters | pktremovedport0_reg_clear ? 'h0  : pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-2:0] + pkt_removed[0];
-                pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-1] <= #1  clear_counters | pktremovedport0_reg_clear ? 'h0 : pktremovedport0_reg [`REG_PKTREMOVEDPORT0_WIDTH-2:0] + pkt_removed[0]  > {(`REG_PKTREMOVEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-1];
-		bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-2:0] <= #1  clear_counters | bytesremovedport0_reg_clear ? 'h0  : bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-2:0] + bytes_removed_0;
-                bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-1] <= #1  clear_counters | bytesremovedport0_reg_clear ? 'h0 : bytesremovedport0_reg [`REG_BYTESREMOVEDPORT0_WIDTH-2:0] + bytes_removed_0  > {(`REG_BYTESREMOVEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-1];
-		pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] <= #1  clear_counters | pktdroppedport0_reg_clear ? 'h0  : pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] + pkt_dropped[0];
-                pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1] <= #1  clear_counters | pktdroppedport0_reg_clear ? 'h0 : pktdroppedport0_reg [`REG_PKTDROPPEDPORT0_WIDTH-2:0] + pkt_dropped[0]  > {(`REG_PKTDROPPEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1];
-		bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] <= #1  clear_counters | bytesdroppedport0_reg_clear ? 'h0  : bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] + bytes_dropped[0];
-                bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1] <= #1  clear_counters | bytesdroppedport0_reg_clear ? 'h0 : bytesdroppedport0_reg [`REG_PKTDROPPEDPORT0_WIDTH-2:0] + bytes_dropped[0]  > {(`REG_PKTDROPPEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1];
-		pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-2:0] <= #1  clear_counters | pktinqueueport0_reg_clear ? 'h0  : pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-2:0] + pkt_stored[0]-pkt_removed[0];
-                pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-1] <= #1  clear_counters | pktinqueueport0_reg_clear ? 'h0 : pktinqueueport0_reg [`REG_PKTINQUEUEPORT0_WIDTH-2:0] + pkt_stored[0]-pkt_removed[0]  > {(`REG_PKTINQUEUEPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-1];
+		pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-2:0] <=   clear_counters | pktstoredport0_reg_clear ? 'h0  : pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-2:0] + pkt_stored[0];
+    pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-1] <=   clear_counters | pktstoredport0_reg_clear ? 'h0 : pktstoredport0_reg [`REG_PKTSTOREDPORT0_WIDTH-2:0] + pkt_stored[0]  > {(`REG_PKTSTOREDPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport0_reg[`REG_PKTSTOREDPORT0_WIDTH-1];
+		bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-2:0] <=   clear_counters | bytesstoredport0_reg_clear ? 'h0  : bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-2:0] + (pkt_stored[0] ? bytes_stored : 0);
+    bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-1] <=   clear_counters | bytesstoredport0_reg_clear ? 'h0 : bytesstoredport0_reg [`REG_BYTESSTOREDPORT0_WIDTH-2:0] + (pkt_stored[0] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT0_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport0_reg[`REG_BYTESSTOREDPORT0_WIDTH-1];
+		pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-2:0] <=   clear_counters | pktremovedport0_reg_clear ? 'h0  : pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-2:0] + pkt_removed[0];
+    pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-1] <=   clear_counters | pktremovedport0_reg_clear ? 'h0 : pktremovedport0_reg [`REG_PKTREMOVEDPORT0_WIDTH-2:0] + pkt_removed[0]  > {(`REG_PKTREMOVEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport0_reg[`REG_PKTREMOVEDPORT0_WIDTH-1];
+		bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-2:0] <=   clear_counters | bytesremovedport0_reg_clear ? 'h0  : bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-2:0] + bytes_removed_0;
+    bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-1] <=   clear_counters | bytesremovedport0_reg_clear ? 'h0 : bytesremovedport0_reg [`REG_BYTESREMOVEDPORT0_WIDTH-2:0] + bytes_removed_0  > {(`REG_BYTESREMOVEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport0_reg[`REG_BYTESREMOVEDPORT0_WIDTH-1];
+		pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] <=   clear_counters | pktdroppedport0_reg_clear ? 'h0  : pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] + pkt_dropped[0];
+    pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1] <=   clear_counters | pktdroppedport0_reg_clear ? 'h0 : pktdroppedport0_reg [`REG_PKTDROPPEDPORT0_WIDTH-2:0] + pkt_dropped[0]  > {(`REG_PKTDROPPEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1];
+		bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] <=   clear_counters | bytesdroppedport0_reg_clear ? 'h0  : bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-2:0] + bytes_dropped[0];
+    bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1] <=   clear_counters | bytesdroppedport0_reg_clear ? 'h0 : bytesdroppedport0_reg [`REG_PKTDROPPEDPORT0_WIDTH-2:0] + bytes_dropped[0]  > {(`REG_PKTDROPPEDPORT0_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport0_reg[`REG_PKTDROPPEDPORT0_WIDTH-1];
+		pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-2:0] <=   clear_counters | pktinqueueport0_reg_clear ? 'h0  : pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-2:0] + pkt_stored[0]-pkt_removed[0];
+    pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-1] <=   clear_counters | pktinqueueport0_reg_clear ? 'h0 : pktinqueueport0_reg [`REG_PKTINQUEUEPORT0_WIDTH-2:0] + pkt_stored[0]-pkt_removed[0]  > {(`REG_PKTINQUEUEPORT0_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport0_reg[`REG_PKTINQUEUEPORT0_WIDTH-1];
 //Port 1 Counters
-		pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-2:0] <= #1  clear_counters | pktstoredport1_reg_clear ? 'h0  : pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-2:0] + pkt_stored[1];
-                pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-1] <= #1  clear_counters | pktstoredport1_reg_clear ? 'h0 : pktstoredport1_reg [`REG_PKTSTOREDPORT1_WIDTH-2:0] + pkt_stored[1]  > {(`REG_PKTSTOREDPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-1];
-		bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-2:0] <= #1  clear_counters | bytesstoredport1_reg_clear ? 'h0  : bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-2:0] + (pkt_stored[1] ? bytes_stored : 0);
-                bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-1] <= #1  clear_counters | bytesstoredport1_reg_clear ? 'h0 : bytesstoredport1_reg [`REG_BYTESSTOREDPORT1_WIDTH-2:0] + (pkt_stored[1] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT1_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-1];
-		pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-2:0] <= #1  clear_counters | pktremovedport1_reg_clear ? 'h0  : pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-2:0] + pkt_removed[1];
-                pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-1] <= #1  clear_counters | pktremovedport1_reg_clear ? 'h0 : pktremovedport1_reg [`REG_PKTREMOVEDPORT1_WIDTH-2:0] + pkt_removed[1]  > {(`REG_PKTREMOVEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-1];
-		bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-2:0] <= #1  clear_counters | bytesremovedport1_reg_clear ? 'h0  : bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-2:0] + bytes_removed_1;
-                bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-1] <= #1  clear_counters | bytesremovedport1_reg_clear ? 'h0 : bytesremovedport1_reg [`REG_BYTESREMOVEDPORT1_WIDTH-2:0] + bytes_removed_1  > {(`REG_BYTESREMOVEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-1];
-		pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] <= #1  clear_counters | pktdroppedport1_reg_clear ? 'h0  : pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] + pkt_dropped[1];
-                pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1] <= #1  clear_counters | pktdroppedport1_reg_clear ? 'h0 : pktdroppedport1_reg [`REG_PKTDROPPEDPORT1_WIDTH-2:0] + pkt_dropped[1]  > {(`REG_PKTDROPPEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1];
-		bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] <= #1  clear_counters | bytesdroppedport1_reg_clear ? 'h0  : bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] + bytes_dropped[1];
-                bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1] <= #1  clear_counters | bytesdroppedport1_reg_clear ? 'h0 : bytesdroppedport1_reg [`REG_PKTDROPPEDPORT1_WIDTH-2:0] + bytes_dropped[1]  > {(`REG_PKTDROPPEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1];
-		pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-2:0] <= #1  clear_counters | pktinqueueport1_reg_clear ? 'h0  : pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-2:0] + pkt_stored[1]-pkt_removed[1];
-                pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-1] <= #1  clear_counters | pktinqueueport1_reg_clear ? 'h0 : pktinqueueport1_reg [`REG_PKTINQUEUEPORT1_WIDTH-2:0] + pkt_stored[1]-pkt_removed[1]  > {(`REG_PKTINQUEUEPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-1];
+		pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-2:0] <=   clear_counters | pktstoredport1_reg_clear ? 'h0  : pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-2:0] + pkt_stored[1];
+                pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-1] <=   clear_counters | pktstoredport1_reg_clear ? 'h0 : pktstoredport1_reg [`REG_PKTSTOREDPORT1_WIDTH-2:0] + pkt_stored[1]  > {(`REG_PKTSTOREDPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport1_reg[`REG_PKTSTOREDPORT1_WIDTH-1];
+		bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-2:0] <=   clear_counters | bytesstoredport1_reg_clear ? 'h0  : bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-2:0] + (pkt_stored[1] ? bytes_stored : 0);
+                bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-1] <=   clear_counters | bytesstoredport1_reg_clear ? 'h0 : bytesstoredport1_reg [`REG_BYTESSTOREDPORT1_WIDTH-2:0] + (pkt_stored[1] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT1_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport1_reg[`REG_BYTESSTOREDPORT1_WIDTH-1];
+		pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-2:0] <=   clear_counters | pktremovedport1_reg_clear ? 'h0  : pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-2:0] + pkt_removed[1];
+                pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-1] <=   clear_counters | pktremovedport1_reg_clear ? 'h0 : pktremovedport1_reg [`REG_PKTREMOVEDPORT1_WIDTH-2:0] + pkt_removed[1]  > {(`REG_PKTREMOVEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport1_reg[`REG_PKTREMOVEDPORT1_WIDTH-1];
+		bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-2:0] <=   clear_counters | bytesremovedport1_reg_clear ? 'h0  : bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-2:0] + bytes_removed_1;
+                bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-1] <=   clear_counters | bytesremovedport1_reg_clear ? 'h0 : bytesremovedport1_reg [`REG_BYTESREMOVEDPORT1_WIDTH-2:0] + bytes_removed_1  > {(`REG_BYTESREMOVEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport1_reg[`REG_BYTESREMOVEDPORT1_WIDTH-1];
+		pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] <=   clear_counters | pktdroppedport1_reg_clear ? 'h0  : pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] + pkt_dropped[1];
+                pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1] <=   clear_counters | pktdroppedport1_reg_clear ? 'h0 : pktdroppedport1_reg [`REG_PKTDROPPEDPORT1_WIDTH-2:0] + pkt_dropped[1]  > {(`REG_PKTDROPPEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1];
+		bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] <=   clear_counters | bytesdroppedport1_reg_clear ? 'h0  : bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-2:0] + bytes_dropped[1];
+                bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1] <=   clear_counters | bytesdroppedport1_reg_clear ? 'h0 : bytesdroppedport1_reg [`REG_PKTDROPPEDPORT1_WIDTH-2:0] + bytes_dropped[1]  > {(`REG_PKTDROPPEDPORT1_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport1_reg[`REG_PKTDROPPEDPORT1_WIDTH-1];
+		pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-2:0] <=   clear_counters | pktinqueueport1_reg_clear ? 'h0  : pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-2:0] + pkt_stored[1]-pkt_removed[1];
+                pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-1] <=   clear_counters | pktinqueueport1_reg_clear ? 'h0 : pktinqueueport1_reg [`REG_PKTINQUEUEPORT1_WIDTH-2:0] + pkt_stored[1]-pkt_removed[1]  > {(`REG_PKTINQUEUEPORT1_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport1_reg[`REG_PKTINQUEUEPORT1_WIDTH-1];
 //Port 2 Counters
-		pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-2:0] <= #1  clear_counters | pktstoredport2_reg_clear ? 'h0  : pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-2:0] + pkt_stored[2];
-                pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-1] <= #1  clear_counters | pktstoredport2_reg_clear ? 'h0 : pktstoredport2_reg [`REG_PKTSTOREDPORT2_WIDTH-2:0] + pkt_stored[2]  > {(`REG_PKTSTOREDPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-1];
-		bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-2:0] <= #1  clear_counters | bytesstoredport2_reg_clear ? 'h0  : bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-2:0] + (pkt_stored[2] ? bytes_stored : 0);
-                bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-1] <= #1  clear_counters | bytesstoredport2_reg_clear ? 'h0 : bytesstoredport2_reg [`REG_BYTESSTOREDPORT2_WIDTH-2:0] + (pkt_stored[2] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT2_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-1];
-		pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-2:0] <= #1  clear_counters | pktremovedport2_reg_clear ? 'h0  : pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-2:0] + pkt_removed[2];
-                pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-1] <= #1  clear_counters | pktremovedport2_reg_clear ? 'h0 : pktremovedport2_reg [`REG_PKTREMOVEDPORT2_WIDTH-2:0] + pkt_removed[2]  > {(`REG_PKTREMOVEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-1];
-		bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-2:0] <= #1  clear_counters | bytesremovedport2_reg_clear ? 'h0  : bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-2:0] + bytes_removed_2;
-                bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-1] <= #1  clear_counters | bytesremovedport2_reg_clear ? 'h0 : bytesremovedport2_reg [`REG_BYTESREMOVEDPORT2_WIDTH-2:0] + bytes_removed_2  > {(`REG_BYTESREMOVEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-1];
-		pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] <= #1  clear_counters | pktdroppedport2_reg_clear ? 'h0  : pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] + pkt_dropped[2];
-                pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1] <= #1  clear_counters | pktdroppedport2_reg_clear ? 'h0 : pktdroppedport2_reg [`REG_PKTDROPPEDPORT2_WIDTH-2:0] + pkt_dropped[2]  > {(`REG_PKTDROPPEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1];
-		bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] <= #1  clear_counters | bytesdroppedport2_reg_clear ? 'h0  : bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] + bytes_dropped[2];
-                bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1] <= #1  clear_counters | bytesdroppedport2_reg_clear ? 'h0 : bytesdroppedport2_reg [`REG_PKTDROPPEDPORT2_WIDTH-2:0] + bytes_dropped[2]  > {(`REG_PKTDROPPEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1];
-		pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-2:0] <= #1  clear_counters | pktinqueueport2_reg_clear ? 'h0  : pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-2:0] + pkt_stored[2]-pkt_removed[2];
-                pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-1] <= #1  clear_counters | pktinqueueport2_reg_clear ? 'h0 : pktinqueueport2_reg [`REG_PKTINQUEUEPORT2_WIDTH-2:0] + pkt_stored[2]-pkt_removed[2]  > {(`REG_PKTINQUEUEPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-1];
+		pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-2:0] <=   clear_counters | pktstoredport2_reg_clear ? 'h0  : pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-2:0] + pkt_stored[2];
+                pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-1] <=   clear_counters | pktstoredport2_reg_clear ? 'h0 : pktstoredport2_reg [`REG_PKTSTOREDPORT2_WIDTH-2:0] + pkt_stored[2]  > {(`REG_PKTSTOREDPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport2_reg[`REG_PKTSTOREDPORT2_WIDTH-1];
+		bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-2:0] <=   clear_counters | bytesstoredport2_reg_clear ? 'h0  : bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-2:0] + (pkt_stored[2] ? bytes_stored : 0);
+                bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-1] <=   clear_counters | bytesstoredport2_reg_clear ? 'h0 : bytesstoredport2_reg [`REG_BYTESSTOREDPORT2_WIDTH-2:0] + (pkt_stored[2] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT2_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport2_reg[`REG_BYTESSTOREDPORT2_WIDTH-1];
+		pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-2:0] <=   clear_counters | pktremovedport2_reg_clear ? 'h0  : pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-2:0] + pkt_removed[2];
+                pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-1] <=   clear_counters | pktremovedport2_reg_clear ? 'h0 : pktremovedport2_reg [`REG_PKTREMOVEDPORT2_WIDTH-2:0] + pkt_removed[2]  > {(`REG_PKTREMOVEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport2_reg[`REG_PKTREMOVEDPORT2_WIDTH-1];
+		bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-2:0] <=   clear_counters | bytesremovedport2_reg_clear ? 'h0  : bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-2:0] + bytes_removed_2;
+                bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-1] <=   clear_counters | bytesremovedport2_reg_clear ? 'h0 : bytesremovedport2_reg [`REG_BYTESREMOVEDPORT2_WIDTH-2:0] + bytes_removed_2  > {(`REG_BYTESREMOVEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport2_reg[`REG_BYTESREMOVEDPORT2_WIDTH-1];
+		pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] <=   clear_counters | pktdroppedport2_reg_clear ? 'h0  : pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] + pkt_dropped[2];
+                pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1] <=   clear_counters | pktdroppedport2_reg_clear ? 'h0 : pktdroppedport2_reg [`REG_PKTDROPPEDPORT2_WIDTH-2:0] + pkt_dropped[2]  > {(`REG_PKTDROPPEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1];
+		bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] <=   clear_counters | bytesdroppedport2_reg_clear ? 'h0  : bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-2:0] + bytes_dropped[2];
+                bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1] <=   clear_counters | bytesdroppedport2_reg_clear ? 'h0 : bytesdroppedport2_reg [`REG_PKTDROPPEDPORT2_WIDTH-2:0] + bytes_dropped[2]  > {(`REG_PKTDROPPEDPORT2_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport2_reg[`REG_PKTDROPPEDPORT2_WIDTH-1];
+		pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-2:0] <=   clear_counters | pktinqueueport2_reg_clear ? 'h0  : pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-2:0] + pkt_stored[2]-pkt_removed[2];
+                pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-1] <=   clear_counters | pktinqueueport2_reg_clear ? 'h0 : pktinqueueport2_reg [`REG_PKTINQUEUEPORT2_WIDTH-2:0] + pkt_stored[2]-pkt_removed[2]  > {(`REG_PKTINQUEUEPORT2_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport2_reg[`REG_PKTINQUEUEPORT2_WIDTH-1];
 //Port 3 Counters
-		pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-2:0] <= #1  clear_counters | pktstoredport3_reg_clear ? 'h0  : pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-2:0] + pkt_stored[3];
-                pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-1] <= #1  clear_counters | pktstoredport3_reg_clear ? 'h0 : pktstoredport3_reg [`REG_PKTSTOREDPORT3_WIDTH-2:0] + pkt_stored[3]  > {(`REG_PKTSTOREDPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-1];
-		bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-2:0] <= #1  clear_counters | bytesstoredport3_reg_clear ? 'h0  : bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-2:0] + (pkt_stored[3] ? bytes_stored : 0);
-                bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-1] <= #1  clear_counters | bytesstoredport3_reg_clear ? 'h0 : bytesstoredport3_reg [`REG_BYTESSTOREDPORT3_WIDTH-2:0] + (pkt_stored[3] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT3_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-1];
-		pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-2:0] <= #1  clear_counters | pktremovedport3_reg_clear ? 'h0  : pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-2:0] + pkt_removed[3];
-                pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-1] <= #1  clear_counters | pktremovedport3_reg_clear ? 'h0 : pktremovedport3_reg [`REG_PKTREMOVEDPORT3_WIDTH-2:0] + pkt_removed[3]  > {(`REG_PKTREMOVEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-1];
-		bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-2:0] <= #1  clear_counters | bytesremovedport3_reg_clear ? 'h0  : bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-2:0] + bytes_removed_3;
-                bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-1] <= #1  clear_counters | bytesremovedport3_reg_clear ? 'h0 : bytesremovedport3_reg [`REG_BYTESREMOVEDPORT3_WIDTH-2:0] + bytes_removed_3  > {(`REG_BYTESREMOVEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-1];
-		pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] <= #1  clear_counters | pktdroppedport3_reg_clear ? 'h0  : pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] + pkt_dropped[3];
-                pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1] <= #1  clear_counters | pktdroppedport3_reg_clear ? 'h0 : pktdroppedport3_reg [`REG_PKTDROPPEDPORT3_WIDTH-2:0] + pkt_dropped[3]  > {(`REG_PKTDROPPEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1];
-		bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] <= #1  clear_counters | bytesdroppedport3_reg_clear ? 'h0  : bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] + bytes_dropped[3];
-                bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1] <= #1  clear_counters | bytesdroppedport3_reg_clear ? 'h0 : bytesdroppedport3_reg [`REG_PKTDROPPEDPORT3_WIDTH-2:0] + bytes_dropped[3]  > {(`REG_PKTDROPPEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1];
-		pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-2:0] <= #1  clear_counters | pktinqueueport3_reg_clear ? 'h0  : pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-2:0] + pkt_stored[3]-pkt_removed[3];
-                pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-1] <= #1  clear_counters | pktinqueueport3_reg_clear ? 'h0 : pktinqueueport3_reg [`REG_PKTINQUEUEPORT3_WIDTH-2:0] + pkt_stored[3]-pkt_removed[3]  > {(`REG_PKTINQUEUEPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-1];
+		pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-2:0] <=   clear_counters | pktstoredport3_reg_clear ? 'h0  : pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-2:0] + pkt_stored[3];
+                pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-1] <=   clear_counters | pktstoredport3_reg_clear ? 'h0 : pktstoredport3_reg [`REG_PKTSTOREDPORT3_WIDTH-2:0] + pkt_stored[3]  > {(`REG_PKTSTOREDPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport3_reg[`REG_PKTSTOREDPORT3_WIDTH-1];
+		bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-2:0] <=   clear_counters | bytesstoredport3_reg_clear ? 'h0  : bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-2:0] + (pkt_stored[3] ? bytes_stored : 0);
+                bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-1] <=   clear_counters | bytesstoredport3_reg_clear ? 'h0 : bytesstoredport3_reg [`REG_BYTESSTOREDPORT3_WIDTH-2:0] + (pkt_stored[3] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT3_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport3_reg[`REG_BYTESSTOREDPORT3_WIDTH-1];
+		pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-2:0] <=   clear_counters | pktremovedport3_reg_clear ? 'h0  : pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-2:0] + pkt_removed[3];
+                pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-1] <=   clear_counters | pktremovedport3_reg_clear ? 'h0 : pktremovedport3_reg [`REG_PKTREMOVEDPORT3_WIDTH-2:0] + pkt_removed[3]  > {(`REG_PKTREMOVEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport3_reg[`REG_PKTREMOVEDPORT3_WIDTH-1];
+		bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-2:0] <=   clear_counters | bytesremovedport3_reg_clear ? 'h0  : bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-2:0] + bytes_removed_3;
+                bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-1] <=   clear_counters | bytesremovedport3_reg_clear ? 'h0 : bytesremovedport3_reg [`REG_BYTESREMOVEDPORT3_WIDTH-2:0] + bytes_removed_3  > {(`REG_BYTESREMOVEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport3_reg[`REG_BYTESREMOVEDPORT3_WIDTH-1];
+		pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] <=   clear_counters | pktdroppedport3_reg_clear ? 'h0  : pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] + pkt_dropped[3];
+                pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1] <=   clear_counters | pktdroppedport3_reg_clear ? 'h0 : pktdroppedport3_reg [`REG_PKTDROPPEDPORT3_WIDTH-2:0] + pkt_dropped[3]  > {(`REG_PKTDROPPEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1];
+		bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] <=   clear_counters | bytesdroppedport3_reg_clear ? 'h0  : bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-2:0] + bytes_dropped[3];
+                bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1] <=   clear_counters | bytesdroppedport3_reg_clear ? 'h0 : bytesdroppedport3_reg [`REG_PKTDROPPEDPORT3_WIDTH-2:0] + bytes_dropped[3]  > {(`REG_PKTDROPPEDPORT3_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport3_reg[`REG_PKTDROPPEDPORT3_WIDTH-1];
+		pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-2:0] <=   clear_counters | pktinqueueport3_reg_clear ? 'h0  : pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-2:0] + pkt_stored[3]-pkt_removed[3];
+                pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-1] <=   clear_counters | pktinqueueport3_reg_clear ? 'h0 : pktinqueueport3_reg [`REG_PKTINQUEUEPORT3_WIDTH-2:0] + pkt_stored[3]-pkt_removed[3]  > {(`REG_PKTINQUEUEPORT3_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport3_reg[`REG_PKTINQUEUEPORT3_WIDTH-1];
 //Port 4 Counters
-		pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-2:0] <= #1  clear_counters | pktstoredport4_reg_clear ? 'h0  : pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-2:0] + pkt_stored[4];
-                pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-1] <= #1  clear_counters | pktstoredport4_reg_clear ? 'h0 : pktstoredport4_reg [`REG_PKTSTOREDPORT4_WIDTH-2:0] + pkt_stored[4]  > {(`REG_PKTSTOREDPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-1];
-		bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-2:0] <= #1  clear_counters | bytesstoredport4_reg_clear ? 'h0  : bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-2:0] + (pkt_stored[4] ? bytes_stored : 0);
-                bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-1] <= #1  clear_counters | bytesstoredport4_reg_clear ? 'h0 : bytesstoredport4_reg [`REG_BYTESSTOREDPORT4_WIDTH-2:0] + (pkt_stored[4] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT4_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-1];
-		pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-2:0] <= #1  clear_counters | pktremovedport4_reg_clear ? 'h0  : pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-2:0] + pkt_removed[4];
-                pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-1] <= #1  clear_counters | pktremovedport4_reg_clear ? 'h0 : pktremovedport4_reg [`REG_PKTREMOVEDPORT4_WIDTH-2:0] + pkt_removed[4]  > {(`REG_PKTREMOVEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-1];
-		bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-2:0] <= #1  clear_counters | bytesremovedport4_reg_clear ? 'h0  : bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-2:0] + bytes_removed_4;
-                bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-1] <= #1  clear_counters | bytesremovedport4_reg_clear ? 'h0 : bytesremovedport4_reg [`REG_BYTESREMOVEDPORT4_WIDTH-2:0] + bytes_removed_4  > {(`REG_BYTESREMOVEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-1];
-		pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] <= #1  clear_counters | pktdroppedport4_reg_clear ? 'h0  : pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] + pkt_dropped[4];
-                pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1] <= #1  clear_counters | pktdroppedport4_reg_clear ? 'h0 : pktdroppedport4_reg [`REG_PKTDROPPEDPORT4_WIDTH-2:0] + pkt_dropped[4]  > {(`REG_PKTDROPPEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1];
-		bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] <= #1  clear_counters | bytesdroppedport4_reg_clear ? 'h0  : bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] + bytes_dropped[4];
-                bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1] <= #1  clear_counters | bytesdroppedport4_reg_clear ? 'h0 : bytesdroppedport4_reg [`REG_PKTDROPPEDPORT4_WIDTH-2:0] + bytes_dropped[4]  > {(`REG_PKTDROPPEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1];
-		pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-2:0] <= #1  clear_counters | pktinqueueport4_reg_clear ? 'h0  : pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-2:0] + pkt_stored[4]-pkt_removed[4];
-                pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-1] <= #1  clear_counters | pktinqueueport4_reg_clear ? 'h0 : pktinqueueport4_reg [`REG_PKTINQUEUEPORT4_WIDTH-2:0] + pkt_stored[4]-pkt_removed[4]  > {(`REG_PKTINQUEUEPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-1];
-  
+		pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-2:0] <=   clear_counters | pktstoredport4_reg_clear ? 'h0  : pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-2:0] + pkt_stored[4];
+                pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-1] <=   clear_counters | pktstoredport4_reg_clear ? 'h0 : pktstoredport4_reg [`REG_PKTSTOREDPORT4_WIDTH-2:0] + pkt_stored[4]  > {(`REG_PKTSTOREDPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktstoredport4_reg[`REG_PKTSTOREDPORT4_WIDTH-1];
+		bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-2:0] <=   clear_counters | bytesstoredport4_reg_clear ? 'h0  : bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-2:0] + (pkt_stored[4] ? bytes_stored : 0);
+                bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-1] <=   clear_counters | bytesstoredport4_reg_clear ? 'h0 : bytesstoredport4_reg [`REG_BYTESSTOREDPORT4_WIDTH-2:0] + (pkt_stored[4] ? bytes_stored : 0)  > {(`REG_BYTESSTOREDPORT4_WIDTH-1){1'b1}} ? 1'b1 : bytesstoredport4_reg[`REG_BYTESSTOREDPORT4_WIDTH-1];
+		pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-2:0] <=   clear_counters | pktremovedport4_reg_clear ? 'h0  : pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-2:0] + pkt_removed[4];
+                pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-1] <=   clear_counters | pktremovedport4_reg_clear ? 'h0 : pktremovedport4_reg [`REG_PKTREMOVEDPORT4_WIDTH-2:0] + pkt_removed[4]  > {(`REG_PKTREMOVEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktremovedport4_reg[`REG_PKTREMOVEDPORT4_WIDTH-1];
+		bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-2:0] <=   clear_counters | bytesremovedport4_reg_clear ? 'h0  : bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-2:0] + bytes_removed_4;
+                bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-1] <=   clear_counters | bytesremovedport4_reg_clear ? 'h0 : bytesremovedport4_reg [`REG_BYTESREMOVEDPORT4_WIDTH-2:0] + bytes_removed_4  > {(`REG_BYTESREMOVEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : bytesremovedport4_reg[`REG_BYTESREMOVEDPORT4_WIDTH-1];
+		pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] <=   clear_counters | pktdroppedport4_reg_clear ? 'h0  : pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] + pkt_dropped[4];
+                pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1] <=   clear_counters | pktdroppedport4_reg_clear ? 'h0 : pktdroppedport4_reg [`REG_PKTDROPPEDPORT4_WIDTH-2:0] + pkt_dropped[4]  > {(`REG_PKTDROPPEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1];
+		bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] <=   clear_counters | bytesdroppedport4_reg_clear ? 'h0  : bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-2:0] + bytes_dropped[4];
+                bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1] <=   clear_counters | bytesdroppedport4_reg_clear ? 'h0 : bytesdroppedport4_reg [`REG_PKTDROPPEDPORT4_WIDTH-2:0] + bytes_dropped[4]  > {(`REG_PKTDROPPEDPORT4_WIDTH-1){1'b1}} ? 1'b1 : bytesdroppedport4_reg[`REG_PKTDROPPEDPORT4_WIDTH-1];
+		pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-2:0] <=   clear_counters | pktinqueueport4_reg_clear ? 'h0  : pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-2:0] + pkt_stored[4]-pkt_removed[4];
+                pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-1] <=   clear_counters | pktinqueueport4_reg_clear ? 'h0 : pktinqueueport4_reg [`REG_PKTINQUEUEPORT4_WIDTH-2:0] + pkt_stored[4]-pkt_removed[4]  > {(`REG_PKTINQUEUEPORT4_WIDTH-1){1'b1}} ? 1'b1 : pktinqueueport4_reg[`REG_PKTINQUEUEPORT4_WIDTH-1];
+
         end
-
-
-
-
 
 endmodule

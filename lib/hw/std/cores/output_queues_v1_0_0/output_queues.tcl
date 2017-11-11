@@ -6,7 +6,7 @@
 # Stanford University and the University of Cambridge Computer Laboratory
 # under National Science Foundation under Grant No. CNS-0855268,
 # the University of Cambridge Computer Laboratory under EPSRC INTERNET Project EP/H040536/1 and
-# by the University of Cambridge Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249 ("MRC2"), 
+# by the University of Cambridge Computer Laboratory under DARPA/AFRL contract FA8750-11-C-0249 ("MRC2"),
 # as part of the DARPA MRC research programme.
 #
 # @NETFPGA_LICENSE_HEADER_START@
@@ -44,7 +44,7 @@ set axi_lite_ipif_ip_path ../../../xilinx/cores/axi_lite_ipif/source/
 # Project Settings
 #####################################
 create_project -name ${design} -force -dir "./${proj_dir}" -part ${device} -ip
-set_property source_mgmt_mode All [current_project]  
+set_property source_mgmt_mode All [current_project]
 set_property top ${top} [current_fileset]
 set_property ip_repo_paths $::env(SUME_FOLDER)/lib/hw/  [current_fileset]
 puts "Creating Output Queues IP"
@@ -123,6 +123,9 @@ set_property value_format {bitstring} [ipx::get_user_parameter C_BASEADDR [ipx::
 ipx::add_subcore NetFPGA:NetFPGA:fallthrough_small_fifo:1.00 [ipx::get_file_groups xilinx_verilogsynthesis -of_objects [ipx::current_core]]
 ipx::add_subcore NetFPGA:NetFPGA:fallthrough_small_fifo:1.00 [ipx::get_file_groups xilinx_verilogbehavioralsimulation -of_objects [ipx::current_core]]
 
+ipx::add_subcore NetFPGA:NetFPGA:fallthrough_small_fifo_twothresh:1.00 [ipx::get_file_groups xilinx_verilogsynthesis -of_objects [ipx::current_core]]
+ipx::add_subcore NetFPGA:NetFPGA:fallthrough_small_fifo_twothresh:1.00 [ipx::get_file_groups xilinx_verilogbehavioralsimulation -of_objects [ipx::current_core]]
+
 ipx::add_bus_parameter FREQ_HZ [ipx::get_bus_interfaces s_axis -of_objects [ipx::current_core]]
 ipx::add_bus_parameter FREQ_HZ [ipx::get_bus_interfaces m_axis_0 -of_objects [ipx::current_core]]
 ipx::add_bus_parameter FREQ_HZ [ipx::get_bus_interfaces m_axis_1 -of_objects [ipx::current_core]]
@@ -138,15 +141,4 @@ ipx::save_core [ipx::current_core]
 update_ip_catalog
 close_project
 
-file delete -force ${proj_dir} 
-
-
-
-
-
-
-
-
-
-
-
+file delete -force ${proj_dir}
