@@ -16,7 +16,7 @@ This repo provides a switch with:
 		hdl/output_queues.v
 	lib/hw/std/cores/fallthrough_small_fifo_twothresh_v1_0_0 (new dir)
 
-the `.old` files under the above two dirs are version without dynamic threshold (but with INT mirroring).
+the `.old` files under the above two dirs is the version with only INT mirroring and early drop. The corresponding `.v` files are based on the `.old` files and adding dynamic threshold.
 
 ### Detail
 1. INT mirroring
@@ -28,3 +28,9 @@ the `.old` files under the above two dirs are version without dynamic threshold 
 2. Early drop
 	
 	The `fallthrough_small_fifo_twothresh` also takes another threshold called `PROG_FULL_THRESHOLD_EARLY`. It compares the queue length with this early threshold, and returns whether the early threshold is reached (`prog_full` in small_fifo_twothresh). `output_queue` module takes `prog_full` and the 120-th bit (0-th bit of tos field) in packet, and decides whether to drop the packet (prog_full == 1 and 120-th bit == 1) or not.
+
+3. Dynamic threshold
+
+	The `fallthrough_small_fifo_twothresh` and `small_fifo_twothresh` expose the current queue length to `output_queue`. `output_queue` uses the queue lengths to calculate the dynamic threshold (`real_threshold` in output_queue.v), and assign the dynamic threshold back to `fallthrough_small_fifo_twothresh` and `small_fifo_twothresh` for them to decide whether the threshold is reached or not (`prog_full` (early drop) and `nearly_full` (normal drop)).
+
+	Note that the both `prog_full` and `nearly_full` are based on the dynamic threshold, not the configured `PROG_FULL_THRESHOLD` and `PROG_FULL_THRESHOLD_EARLY`. These two configurations are not used.
