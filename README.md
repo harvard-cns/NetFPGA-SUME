@@ -2,7 +2,9 @@
 This repo provides a switch with:
 1. INT mirroring
 
-	Each packet will be mirrored (only the header part), with some fields in the header modified to store the queueing-related variables, such as queue length, drop or not.
+	Each packet will be mirrored (only the header part), with some fields in the header modified to store the queueing-related variables, such as queue length, drop or not. 
+	
+	The collector of the mirrored packets is in another repo: TCP_replay_testbed. See `TCP_replay_testbed/runtime_capture`.
 
 2. Early drop for special packets
 
