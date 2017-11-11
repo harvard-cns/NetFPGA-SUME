@@ -41,6 +41,8 @@ I forget...
 
 Maybe first `make` in the top dir, and `make` in the `lib/hw/xilinx/cores/cam_v1_1_0` and `lib/hw/xilinx/cores/tcam_v1_1_0`, then `make` in `projects/reference_switch`.
 
+Everytime make a change to a modules under lib/hw/std/cores/, just do `make` under the dir of the module, and `make` in `projects/reference_switch`.
+
 ## Change dynamic threshold
 Change `BIT_SHIFT_ALPHA` in `lib/hw/std/cores/output_queues_v1_0_0/hdl/output_queues.v` to change the alpha of dynamic thresholding.
 
