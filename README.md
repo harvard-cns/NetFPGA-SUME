@@ -20,4 +20,11 @@ the `.old` files under the above two dirs are version without dynamic threshold 
 
 ### Detail
 1. INT mirroring
+
 	The `output_queue` is the module for output queue, which originally calls `fallthrough_small_fifo`.
+
+	We change it to call `fallthrough_small_fifo_twothresh`, which exposes the queue length. We put the queue length in the mirrored packet header. The mirroring port is numbered 0.
+
+2. Early drop
+	
+	The `fallthrough_small_fifo_twothresh` also takes another threshold called `PROG_FULL_THRESHOLD_EARLY`. It compares the queue length with this early threshold, and returns whether the early threshold is reached (`prog_full` in small_fifo_twothresh). `output_queue` module takes `prog_full` and the 120-th bit (0-th bit of tos field) in packet, and decides whether to drop the packet (prog_full == 1 and 120-th bit == 1) or not.
