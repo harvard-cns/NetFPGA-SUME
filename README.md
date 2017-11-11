@@ -20,4 +20,4 @@ the `.old` files under the above two dirs are version without dynamic threshold 
 
 ### Detail
 1. INT mirroring
-The `output_queue` is the module for output queue, which originally calls `fallthrough_small_fifo`.
+	The `output_queue` is the module for output queue, which originally calls `fallthrough_small_fifo`.
